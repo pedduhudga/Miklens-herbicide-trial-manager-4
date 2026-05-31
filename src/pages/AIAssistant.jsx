@@ -243,7 +243,7 @@ You must optimize for fast answers and strictly incorporate product formulation 
 
       // Use the new @google/genai SDK API: genAI.models.generateContent()
       const geminiCall = async (genAI) => {
-        const modelName = state.settings?.apiModel || state.settings?.selectedModel || 'gemini-2.0-flash';
+        const modelName = state.settings?.apiModel || state.settings?.selectedModel || 'gemini-3.1-flash-lite';
 
         if (img) {
           const response = await genAI.models.generateContent({
@@ -343,7 +343,7 @@ You must optimize for fast answers and strictly incorporate product formulation 
     updateState({ currentAiChatSessionId: null });
   };
 
-  const modelName = state.settings?.selectedModel || 'gemini-2.0-flash';
+  const modelName = state.settings?.selectedModel || 'gemini-3.1-flash-lite';
   const hasKey = (state.settings?.apiKeys || []).length > 0;
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
