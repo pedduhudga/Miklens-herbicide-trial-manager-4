@@ -773,6 +773,7 @@ async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retr
             window.callGeminiApiImpl = callGeminiApi;
 
             // --- UTILITY FUNCTIONS ---
+            function ___legacyVanillaApp_do_not_run() {
             function safeJsonParse(jsonString, defaultValue = []) {
                 if (!jsonString || typeof jsonString !== 'string') return defaultValue;
                 try {
@@ -21374,6 +21375,7 @@ Respond in structured JSON format:
             // =============================================
             // SCIENTIFIC ANALYSIS ENGINE (RCBD)
             // =============================================
+            }
 
 
 
