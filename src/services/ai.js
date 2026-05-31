@@ -27,7 +27,7 @@ function getActiveApiModel(getAppState) {
             if (saved) settings = JSON.parse(saved) || {};
         } catch (e) {}
     }
-    return settings.apiModel || settings.selectedModel || 'gemini-2.0-flash';
+    return settings.apiModel || settings.selectedModel || 'gemini-3.1-flash-lite';
 }
 
 function getGeminiQuotaBlockKey(model, getAppState) {
