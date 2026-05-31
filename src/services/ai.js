@@ -21375,8 +21375,6 @@ Respond in structured JSON format:
             // SCIENTIFIC ANALYSIS ENGINE (RCBD)
             // =============================================
 
-}
-
 
 
 // AI service exports - actual implementations are inside the module IIFE
