@@ -503,6 +503,8 @@ IMPORTANT:
                     });
                     return extractResponseText(response);
                 };
+                return await _callGeminiApiWithRetries_impl(geminiCall, () => window.appState);
+            }
 
 async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retries = 0) {
                 const keyCount = getAppState().settings.apiKeys.length || 1;
