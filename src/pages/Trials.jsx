@@ -2794,7 +2794,6 @@ Exactly 2 sentences. Follow this structure:
                       </button>
                     </div>
                   </div>
-                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
                   {detailPhotos.length > 0 ? (
                     <div className="grid grid-cols-2 gap-3">
                       {detailPhotos.map((photo, idx) => {
@@ -3883,6 +3882,8 @@ Exactly 2 sentences. Follow this structure:
           </div>
         );
       })()}
+
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
     </div>
   );
 }
