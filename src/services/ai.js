@@ -12,10 +12,14 @@ export function resetGeminiState() {
     window._geminiBlockedModels = {};
     window.geminiQuotaBackoffUntil = 0;
     window._lastAiUiErrorAt = 0;
+    window._activeApiModelOverride = null;
     console.log('[AI] Gemini block state cleared.');
 }
 
 function getActiveApiModel(getAppState) {
+    if (typeof window !== 'undefined' && window._activeApiModelOverride) {
+        return window._activeApiModelOverride;
+    }
     let settings = {};
     if (getAppState) {
         settings = getAppState().settings || {};
@@ -70,13 +74,21 @@ function rotateApiModel() {
     if (!state.settings) state.settings = {};
     const currentModel = getActiveApiModel();
     const currentIndex = GEMINI_MODEL_PRIORITY.indexOf(currentModel);
+    let nextModel;
     if (currentIndex === -1 || currentIndex >= GEMINI_MODEL_PRIORITY.length - 1) {
-        state.settings.apiModel = GEMINI_MODEL_PRIORITY[0];
+        nextModel = GEMINI_MODEL_PRIORITY[0];
     } else {
-        state.settings.apiModel = GEMINI_MODEL_PRIORITY[currentIndex + 1];
+        nextModel = GEMINI_MODEL_PRIORITY[currentIndex + 1];
     }
+    
+    state.settings.apiModel = nextModel;
+    if (typeof window !== 'undefined') {
+        window._activeApiModelOverride = nextModel;
+        console.log(`[AI] Rotating model override to: ${nextModel}`);
+    }
+    
     if (window.setAppState) {
-        window.setAppState(prev => ({...prev, settings: {...prev.settings, apiModel: state.settings.apiModel}}));
+        window.setAppState(prev => ({...prev, settings: {...prev.settings, apiModel: nextModel}}));
     }
     return true;
 }
