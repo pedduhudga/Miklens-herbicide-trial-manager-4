@@ -222,6 +222,16 @@ export default function AIAssistant({ onMenuClick }) {
         const baseline = sortedEff.find(obs => (obs.daa ?? obs.day ?? obs.DAA ?? 0) === 0) || sortedEff[0];
         const baselineCover = baseline ? (baseline.weedCover ?? baseline.cover ?? null) : null;
 
+        const isCompleted = t.IsCompleted === true || t.IsCompleted === 'true';
+        let calculatedControlDays = null;
+        if (t.FinalControlDuration) {
+          calculatedControlDays = parseInt(t.FinalControlDuration, 10);
+        } else if (t.Date) {
+          const start = new Date(t.Date);
+          const end = isCompleted && t.FinalizationDate ? new Date(t.FinalizationDate) : new Date();
+          calculatedControlDays = Math.max(0, Math.round((end - start) / 86400000));
+        }
+
         return {
           id: t.ID,
           formulation: t.FormulationName,
@@ -230,7 +240,9 @@ export default function AIAssistant({ onMenuClick }) {
           weeds: t.WeedSpecies,
           location: t.Location,
           date: t.Date,
-          status: (t.IsCompleted === true || t.IsCompleted === 'true') ? 'Finalized' : 'Active',
+          status: isCompleted ? 'Finalized' : 'Active',
+          controlDays: calculatedControlDays,
+          hasExplicitControlDays: !!t.FinalControlDuration,
           observations: eff.map(obs => {
             const daa = obs.daa ?? obs.day ?? obs.DAA ?? 0;
             const weedCover = obs.weedCover ?? obs.cover ?? null;
@@ -269,11 +281,14 @@ ${JSON.stringify(trialsCtx, null, 2)}
 Projects: ${(state.projects || []).map(p => p.Name).join(', ') || 'None'}
 Formulations: ${(state.formulations || []).map(f => f.Name).join(', ') || 'None'}
 CRITICAL ANSWERING GUIDELINES:
-1. **DAA 0 Baseline (Zero Efficacy)**: IMPORTANT: Any observation at DAA 0 is a pre-treatment baseline. At DAA 0, the active Weed Control Efficacy (WCE% or controlPct) is mathematically strictly 0%, even if the WCE is labeled "Baseline" or controlPct/wcePct is null. A newly created trial (like "Goweed Ultra Base") that only has a DAA 0 baseline observation has 0% herbicidal control/efficacy. Do NOT say it has "100% control" or "100% result".
-2. **Prioritize Mature & Legacy Trials**: When evaluating which trial or formulation gave the best/most control, prioritize mature, legacy, or completed trials with observations at 7, 14, 21, or 28 DAA that show high controlPct (e.g. 80-100%). These represent actual established weed control.
-3. **Calculation of Average Efficacy**: To compute a formulation's average efficacy, calculate the mathematical average of the *final/latest* control percentage (controlPct / wcePct) of its mature observations (DAA > 0). Completely exclude/ignore trials that only have DAA 0 (baseline) observations.
-4. **Control % vs Weed Cover**: Remember that "controlPct" or "wcePct" represents active herbicidal success (higher is better, 100% is perfect control), whereas "weedCover" represents remaining weed presence (lower is better, higher indicates poor control unless it is an early baseline).
-5. **Human-Readable Trial Names & Clickable Hyperlinks**: NEVER display raw, unreadable Trial IDs (like "1780124537550") in your text. Instead, always represent every trial using its Formulation name and Dosage (e.g. "Goweed (Mik3) - 2.5 L/ha"). Additionally, you MUST wrap every trial name reference in a clickable Markdown hyperlink pointing exactly to its details hash route format: \`[Formulation - Dosage](#/trials?focus=TRIAL_ID)\`. For example, write \`[Goweed (Mik3) - 2.5 L/ha](#/trials?focus=1780124537550)\` so the user can click it to immediately open that specific trial!`;
+1. **DAA 0 Baseline (Zero Efficacy)**: Any observation at DAA 0 is a pre-treatment baseline. Efficacy at DAA 0 is strictly 0%. A trial with only DAA 0 observations has 0% efficacy.
+2. **Cross-Reference Control Days & Efficacy Data (The "Forgot to Stop" Check)**: IMPORTANT: Some trials have high \`controlDays\` (e.g. 40, 60, 90 days active) simply because they are ongoing and the user "forgot to stop" or finalize them. You must cross-reference \`controlDays\` with the actual observations. If a trial has a high number of active days but only a baseline DAA 0 observation, its actual efficacy is 0%. Only count control duration as genuine if it is supported by mature observations (DAA >= 7) showing sustained high controlPct (>= 80%).
+3. **Sustained Control & High Efficacy**: To find the best formulation, look for trials that have BOTH:
+   - High controlDays or mature DAA observations (e.g. 7 to 28 days).
+   - High controlPct / wcePct (e.g. 80% to 100%) at those mature days.
+   Prioritize finalized legacy trials that have consistent multiple observations and high mature control over ongoing active trials that lack observations.
+4. **Calculation of Average Efficacy**: To compute average efficacy, average the *final/latest* control percentage (controlPct / wcePct) of mature observations (DAA > 0). Exclude trials with only DAA 0 observations.
+5. **Human-Readable Trial Names & Clickable Hyperlinks**: NEVER display raw, unreadable Trial IDs (like "1780124537550"). Instead, represent every trial using its Formulation name and Dosage (e.g. "Goweed (Mik3) - 2.5 L/ha"). Wrap every trial name reference in a clickable Markdown hyperlink: \`[Formulation - Dosage](#/trials?focus=TRIAL_ID)\`.`;
 
       const fullPrompt = `${systemCtx}\n\nUser: ${userMsg}`;
       let reply;
