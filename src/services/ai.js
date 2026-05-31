@@ -607,16 +607,38 @@ IMPORTANT:
             }
 
 async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retries = 0) {
-                const keyCount = getAppState().settings.apiKeys.length || 1;
-                const maxRetries = keyCount * GEMINI_MODEL_PRIORITY.length + 3;
+                // Safely read settings - try getAppState, then window.appState, then localStorage
+                let currentSettings = {};
+                try {
+                    currentSettings = getAppState()?.settings || {};
+                } catch(e) {}
+                if (!currentSettings.apiKeys) {
+                    try { currentSettings = window.appState?.settings || {}; } catch(e) {}
+                }
+                if (!currentSettings.apiKeys) {
+                    try {
+                        const saved = localStorage.getItem('appSettings');
+                        if (saved) currentSettings = JSON.parse(saved) || {};
+                    } catch(e) {}
+                }
+
+                const apiKeys = Array.isArray(currentSettings.apiKeys) ? currentSettings.apiKeys.filter(Boolean) : [];
+                const keyCount = Math.max(apiKeys.length, 1);
+                // A generous ceiling: give every key a chance against every model, plus several extra attempts
+                const maxRetries = Math.max(keyCount * GEMINI_MODEL_PRIORITY.length + 5, 10);
                 if (retries >= maxRetries) {
                     throw new Error('ALL_KEYS_EXHAUSTED');
                 }
 
+                // If we have NO keys at all, fail fast with a clear message
+                if (apiKeys.length === 0) {
+                    throw new Error('No API key found. Please add a Gemini API key in Settings.');
+                }
+
                 // Skip key+model combos known to be blocked (daily quota or rate limit)
                 const blockedModels = window._geminiBlockedModels || (window._geminiBlockedModels = {});
-                const currentModel = getActiveApiModel();
-                const currentBlockKey = getGeminiQuotaBlockKey(currentModel);
+                const currentModel = getActiveApiModel(getAppState);
+                const currentBlockKey = getGeminiQuotaBlockKey(currentModel, getAppState);
 
                 if (blockedModels[currentBlockKey] && Date.now() < blockedModels[currentBlockKey]) {
                     const msRemaining = blockedModels[currentBlockKey] - Date.now();
@@ -21516,4 +21538,15 @@ export function initAI(getAppState) {
     // during the initializeApp() sequence. We just need to ensure the app
     // is initialized for module consumers.
     console.log('[AI] Service initialized for module exports');
+}
+
+/**
+ * Reset all Gemini quota/block state.
+ * Call this whenever new API keys are saved, or to clear stale error state.
+ */
+export function resetGeminiState() {
+    window._geminiBlockedModels = {};
+    window.geminiQuotaBackoffUntil = 0;
+    window._lastAiUiErrorAt = 0;
+    console.log('[AI] Gemini block state cleared.');
 }
