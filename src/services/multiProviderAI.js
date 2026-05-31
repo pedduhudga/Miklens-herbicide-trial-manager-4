@@ -6,35 +6,55 @@
 // Free tier limits per Google AI Studio / Groq free plan.
 // All Gemini models support: Text + Image + Video + Audio + PDF inputs.
 const PROVIDERS = [
-  // ── Gemini (current stable models) ───────────────────────────────────────
+  // ── Gemini 3.x (newest generation, best vision quality) ──────────────────
   {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-    dailyLimit: 1000,
+    // Stable | Free: ~1500 RPD, 30 RPM | Frontier-class, best for high-volume weed analysis
+    id: 'gemini-3-flash-lite',
+    name: 'Gemini 3.1 Flash-Lite',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent',
+    dailyLimit: 1500,
   },
   {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
+    // Stable | Free: ~500 RPD, 15 RPM | Most intelligent Gemini 3, best for agentic weed ID
+    id: 'gemini-3-flash',
+    name: 'Gemini 3.5 Flash',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent',
+    dailyLimit: 500,
+  },
+  {
+    // Preview | Free: ~100 RPD, 5 RPM | Frontier preview, deeper reasoning for complex plots
+    id: 'gemini-3-flash-preview',
+    name: 'Gemini 3 Flash Preview',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
+    dailyLimit: 100,
+  },
+  {
+    // Preview | Free: ~25 RPD, 5 RPM | Most advanced reasoning — use for AI Summary/Reports
+    id: 'gemini-3-pro',
+    name: 'Gemini 3.1 Pro Preview',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent',
     dailyLimit: 25,
   },
+  // ── Gemini 2.5 (stable fallback series) ─────────────────────────────────
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-    dailyLimit: 1000,
+    // Stable | Free: 1500 RPD, 30 RPM | Fast & cheap fallback
+    id: 'gemini-flash-lite',
+    name: 'Gemini 2.5 Flash-Lite',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
+    dailyLimit: 1500,
   },
   {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
-    dailyLimit: 1000,
+    // Stable | Free: 250 RPD, 10 RPM | Reliable vision + thinking
+    id: 'gemini-flash',
+    name: 'Gemini 2.5 Flash',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+    dailyLimit: 250,
   },
   {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
+    // Stable | Free: 25 RPD, 5 RPM | Deep reasoning fallback
+    id: 'gemini',
+    name: 'Gemini 2.5 Pro',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
     dailyLimit: 25,
   },
   // ── Groq (ultra-fast inference, vision support) ──────────────────────────
