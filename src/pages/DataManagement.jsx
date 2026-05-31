@@ -28,6 +28,14 @@ export default function DataManagement({ onMenuClick }) {
     currentTrialName: '',
   });
 
+  const [repairState, setRepairState] = useState({
+    isRunning: false,
+    taskName: '',
+    progress: 0,
+    total: 0,
+    currentTrialName: ''
+  });
+
   const toast = (msg, type = 'success') =>
     window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg, type } }));
 
@@ -94,32 +102,119 @@ export default function DataManagement({ onMenuClick }) {
     try { return JSON.parse(val); } catch { return fallback; }
   };
 
-  const handleScanTrials = () => {
+  const runAsynchronousRepair = async (taskName, repairFunc) => {
+    const trials = [...(state.trials || [])];
+    if (!trials.length) {
+      toast('No trials on record to repair', 'info');
+      return;
+    }
+    
+    setRepairProgress('');
+    setScanSummary('');
+    setRepairState({
+      isRunning: true,
+      taskName,
+      progress: 0,
+      total: trials.length,
+      currentTrialName: ''
+    });
+    
+    let updatedCount = 0;
+    const currentTrials = [...trials];
+    
+    for (let i = 0; i < currentTrials.length; i++) {
+      const t = currentTrials[i];
+      setRepairState(prev => ({
+        ...prev,
+        progress: i + 1,
+        currentTrialName: t.FormulationName || `Trial ${t.ID.slice(-6)}`
+      }));
+      
+      // Short delay so that user can visually track progress animation
+      await new Promise(r => setTimeout(r, 60));
+      
+      const { updatedTrial, isChanged } = repairFunc(t);
+      if (isChanged) {
+        currentTrials[i] = updatedTrial;
+        updatedCount++;
+        try {
+          await updateTrial(updatedTrial, getAppState);
+        } catch (err) {
+          console.warn(`Failed to sync trial ${t.ID} to Firestore:`, err);
+        }
+      }
+    }
+    
+    updateState({ trials: currentTrials });
+    setRepairState({
+      isRunning: false,
+      taskName: '',
+      progress: 0,
+      total: 0,
+      currentTrialName: ''
+    });
+    
+    setRepairProgress(`${taskName} complete: ${updatedCount} trial(s) successfully processed and persisted.`);
+    toast(`${taskName} complete: ${updatedCount} updated`, 'success');
+  };
+
+  const handleScanTrials = async () => {
     const trials = state.trials || [];
+    if (!trials.length) {
+      toast('No trials on record to scan', 'info');
+      return;
+    }
+
+    setScanSummary('');
+    setRepairProgress('');
+    setRepairState({
+      isRunning: true,
+      taskName: 'Scanning Trials',
+      progress: 0,
+      total: trials.length,
+      currentTrialName: ''
+    });
+
     let missingWeedDetails = 0, stringDaa = 0, missingWeedSpecies = 0;
-    trials.forEach(t => {
+
+    for (let i = 0; i < trials.length; i++) {
+      const t = trials[i];
+      setRepairState(prev => ({
+        ...prev,
+        progress: i + 1,
+        currentTrialName: t.FormulationName || `Trial ${t.ID.slice(-6)}`
+      }));
+      await new Promise(r => setTimeout(r, 45));
+
       const eff = safeJsonParse(t.EfficacyDataJSON, []);
       eff.forEach(o => {
         if (typeof o.daa === 'string') stringDaa++;
         if (!o.weedDetails || o.weedDetails.length === 0) missingWeedDetails++;
       });
       if (!t.WeedSpecies) missingWeedSpecies++;
+    }
+
+    setRepairState({
+      isRunning: false,
+      taskName: '',
+      progress: 0,
+      total: 0,
+      currentTrialName: ''
     });
+
     setScanSummary(
       `Scanned ${trials.length} trials — ` +
-      `${missingWeedDetails} obs missing weedDetails, ` +
-      `${stringDaa} obs with string DAA, ` +
-      `${missingWeedSpecies} trials missing WeedSpecies.`
+      `${missingWeedDetails} observations missing weedDetails, ` +
+      `${stringDaa} observations with string DAA format, ` +
+      `${missingWeedSpecies} trials missing WeedSpecies property.`
     );
-    toast('Scan complete', 'info');
+    toast('Scan complete', 'success');
   };
 
   const handleAutoFixWeedLinking = () => {
-    const trials = [...(state.trials || [])];
-    let fixed = 0;
-    const updated = trials.map(t => {
+    runAsynchronousRepair('Auto-Fix Weed Linking', (t) => {
       const eff = safeJsonParse(t.EfficacyDataJSON, []);
-      if (!eff.length) return t;
+      if (!eff.length) return { updatedTrial: t, isChanged: false };
       let changed = false;
       const newEff = eff.map(o => {
         const newO = { ...o };
@@ -130,36 +225,114 @@ export default function DataManagement({ onMenuClick }) {
         }
         return newO;
       });
-      if (changed) { fixed++; return { ...t, EfficacyDataJSON: JSON.stringify(newEff) }; }
-      return t;
+      return {
+        updatedTrial: changed ? { ...t, EfficacyDataJSON: JSON.stringify(newEff) } : t,
+        isChanged: changed
+      };
     });
-    updateState({ trials: updated });
-    setRepairProgress(`Auto-fix complete: ${fixed} trial(s) updated.`);
-    toast(`Auto-fixed ${fixed} trials`, 'success');
   };
 
   const handleRepairSpeciesTracking = () => {
-    const trials = [...(state.trials || [])];
-    let repaired = 0;
-    const updated = trials.map(t => {
+    runAsynchronousRepair('Repair Species Tracking', (t) => {
       const eff = safeJsonParse(t.EfficacyDataJSON, []);
-      if (!eff.length || t.WeedSpecies) return t;
+      if (!eff.length || t.WeedSpecies) return { updatedTrial: t, isChanged: false };
       const species = new Set();
       eff.forEach(o => (o.weedDetails || []).forEach(w => { if (w.species) species.add(w.species); }));
-      if (species.size > 0) { repaired++; return { ...t, WeedSpecies: [...species].join(', ') }; }
-      return t;
+      if (species.size > 0) {
+        return {
+          updatedTrial: { ...t, WeedSpecies: [...species].join(', ') },
+          isChanged: true
+        };
+      }
+      return { updatedTrial: t, isChanged: false };
     });
-    updateState({ trials: updated });
-    setRepairProgress(`Species tracking repaired: ${repaired} trial(s) updated.`);
-    toast(`Repaired species tracking for ${repaired} trials`, 'success');
   };
 
-  const handleForceFullRerepair = () => {
-    if (!window.confirm('This will re-run all repair steps on every trial. Continue?')) return;
-    handleAutoFixWeedLinking();
-    handleRepairSpeciesTracking();
-    setRepairProgress('Force full re-repair complete.');
-    toast('Force full re-repair done', 'success');
+  const handleForceFullRerepair = async () => {
+    if (!window.confirm('This will sequentially re-run all Weed Linking and Species Tracking repair steps on every trial. Continue?')) return;
+    setRepairProgress('');
+    setScanSummary('');
+
+    const trials = [...(state.trials || [])];
+    if (!trials.length) {
+      toast('No trials on record to repair', 'info');
+      return;
+    }
+
+    setRepairState({
+      isRunning: true,
+      taskName: 'Force Full Re-repair (Weed Linking & Species)',
+      progress: 0,
+      total: trials.length,
+      currentTrialName: ''
+    });
+
+    let repairedCount = 0;
+    const currentTrials = [...trials];
+
+    for (let i = 0; i < currentTrials.length; i++) {
+      const t = currentTrials[i];
+      setRepairState(prev => ({
+        ...prev,
+        progress: i + 1,
+        currentTrialName: t.FormulationName || `Trial ${t.ID.slice(-6)}`
+      }));
+
+      await new Promise(r => setTimeout(r, 60));
+
+      let changed = false;
+      const eff = safeJsonParse(t.EfficacyDataJSON, []);
+      let newEff = [...eff];
+
+      if (eff.length > 0) {
+        newEff = eff.map(o => {
+          const newO = { ...o };
+          if (typeof newO.daa === 'string') { newO.daa = parseFloat(newO.daa) || 0; changed = true; }
+          if (!newO.weedDetails || newO.weedDetails.length === 0) {
+            newO.weedDetails = [{ species: t.WeedSpecies || 'Unknown', cover: newO.weedCover ?? 0 }];
+            changed = true;
+          }
+          return newO;
+        });
+      }
+
+      let weedSpecies = t.WeedSpecies;
+      if (!weedSpecies && newEff.length > 0) {
+        const species = new Set();
+        newEff.forEach(o => (o.weedDetails || []).forEach(w => { if (w.species) species.add(w.species); }));
+        if (species.size > 0) {
+          weedSpecies = [...species].join(', ');
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        const updatedTrial = {
+          ...t,
+          EfficacyDataJSON: JSON.stringify(newEff),
+          WeedSpecies: weedSpecies
+        };
+        currentTrials[i] = updatedTrial;
+        repairedCount++;
+        try {
+          await updateTrial(updatedTrial, getAppState);
+        } catch (err) {
+          console.warn('Sync failed in full rerepair:', err);
+        }
+      }
+    }
+
+    updateState({ trials: currentTrials });
+    setRepairState({
+      isRunning: false,
+      taskName: '',
+      progress: 0,
+      total: 0,
+      currentTrialName: ''
+    });
+
+    setRepairProgress(`Force Full Re-repair successfully complete: ${repairedCount} trial(s) fully repaired and synced to database.`);
+    toast(`Force full re-repair complete`, 'success');
   };
 
   const handleRecalcGridCovers = () => {
@@ -168,11 +341,9 @@ export default function DataManagement({ onMenuClick }) {
   };
 
   const handleRebuildCoverAll = () => {
-    const trials = [...(state.trials || [])];
-    let rebuilt = 0;
-    const updated = trials.map(t => {
+    runAsynchronousRepair('Rebuild %Cover', (t) => {
       const eff = safeJsonParse(t.EfficacyDataJSON, []);
-      if (!eff.length) return t;
+      if (!eff.length) return { updatedTrial: t, isChanged: false };
       let changed = false;
       const newEff = eff.map(o => {
         if (o.weedDetails && o.weedDetails.length > 0 && o.weedCover === undefined) {
@@ -182,21 +353,17 @@ export default function DataManagement({ onMenuClick }) {
         }
         return o;
       });
-      if (changed) { rebuilt++; return { ...t, EfficacyDataJSON: JSON.stringify(newEff) }; }
-      return t;
+      return {
+        updatedTrial: changed ? { ...t, EfficacyDataJSON: JSON.stringify(newEff) } : t,
+        isChanged: changed
+      };
     });
-    updateState({ trials: updated });
-    setRepairProgress(`Rebuilt %Cover for ${rebuilt} trial(s).`);
-    toast(`Rebuilt cover for ${rebuilt} trials`, 'success');
   };
 
   const handleRecalculateWceAll = () => {
-    const trials = [...(state.trials || [])];
-    let updatedCount = 0;
-    
-    const updated = trials.map(t => {
+    runAsynchronousRepair('Recalculate Efficacy (WCE%)', (t) => {
       const eff = safeJsonParse(t.EfficacyDataJSON, []);
-      if (!eff.length) return t;
+      if (!eff.length) return { updatedTrial: t, isChanged: false };
       
       const sortedEff = [...eff].sort((a, b) => {
         const daaA = a.daa ?? a.day ?? a.DAA ?? 0;
@@ -207,7 +374,7 @@ export default function DataManagement({ onMenuClick }) {
       const baseline = sortedEff.find(o => (o.daa ?? o.day ?? o.DAA ?? 0) === 0) || sortedEff[0];
       const baselineCover = baseline ? (baseline.weedCover ?? baseline.cover ?? null) : null;
       
-      if (baselineCover === null || baselineCover <= 0) return t;
+      if (baselineCover === null || baselineCover <= 0) return { updatedTrial: t, isChanged: false };
       
       let changed = false;
       const newEff = eff.map(obs => {
@@ -236,19 +403,11 @@ export default function DataManagement({ onMenuClick }) {
         return obs;
       });
       
-      if (changed) {
-        updatedCount++;
-        return {
-          ...t,
-          EfficacyDataJSON: JSON.stringify(newEff)
-        };
-      }
-      return t;
+      return {
+        updatedTrial: changed ? { ...t, EfficacyDataJSON: JSON.stringify(newEff) } : t,
+        isChanged: changed
+      };
     });
-    
-    updateState({ trials: updated });
-    setRepairProgress(`WCE % Recalculation complete: ${updatedCount} trial(s) successfully repaired with proper Weed Control Efficacy metrics.`);
-    toast(`Recalculated WCE % for ${updatedCount} trials`, 'success');
   };
 
   // ── AI Bulk Analysis ──────────────────────────────────────────────────────
@@ -571,6 +730,28 @@ Provide a 2-sentence summary of expected efficacy based on typical performance p
               Recalculate Efficacy (WCE%)
             </button>
           </div>
+          {repairState.isRunning && (
+            <div className="mt-4 space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+              <div className="flex justify-between items-center text-sm font-bold text-slate-700">
+                <span className="flex items-center gap-1.5">
+                  <Activity className="w-4 h-4 text-emerald-500 animate-pulse" />
+                  Running: {repairState.taskName}
+                </span>
+                <span>{repairState.progress} / {repairState.total}</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2.5 animate-pulse">
+                <div
+                  className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${repairState.total > 0 ? (repairState.progress / repairState.total) * 100 : 0}%`
+                  }}
+                />
+              </div>
+              {repairState.currentTrialName && (
+                <p className="text-xs text-slate-500 italic font-semibold">Processing: {repairState.currentTrialName}</p>
+              )}
+            </div>
+          )}
           {scanSummary && (
             <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">{scanSummary}</div>
           )}
