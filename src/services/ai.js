@@ -3,15 +3,54 @@ import { GoogleGenAI } from "@google/genai";
 
 const GEMINI_MODEL_PRIORITY = AVAILABLE_GEMINI_MODELS.map(m => m.id);
 
-function getActiveApiModel() {
-    const state = window.appState || { settings: {} };
-    return state?.settings?.apiModel || state?.settings?.selectedModel || 'gemini-3.1-flash-lite';
+function getActiveApiModel(getAppState) {
+    let settings = {};
+    if (getAppState) {
+        settings = getAppState().settings || {};
+    } else if (window.appState) {
+        settings = window.appState.settings || {};
+    } else {
+        try {
+            const saved = localStorage.getItem('appSettings');
+            if (saved) settings = JSON.parse(saved) || {};
+        } catch (e) {}
+    }
+    return settings.apiModel || settings.selectedModel || 'gemini-2.0-flash';
 }
 
-function getGeminiQuotaBlockKey(model) {
-    const state = window.appState || { settings: {} };
-    const apiKeyIndex = state?.settings?.currentApiKeyIndex || 0;
+function getGeminiQuotaBlockKey(model, getAppState) {
+    let settings = {};
+    if (getAppState) {
+        settings = getAppState().settings || {};
+    } else if (window.appState) {
+        settings = window.appState.settings || {};
+    } else {
+        try {
+            const saved = localStorage.getItem('appSettings');
+            if (saved) settings = JSON.parse(saved) || {};
+        } catch (e) {}
+    }
+    const apiKeyIndex = settings.currentApiKeyIndex || 0;
     return `${model}_key${apiKeyIndex}`;
+}
+
+function getGenAIClient(getAppState) {
+    let settings = {};
+    if (getAppState) {
+        settings = getAppState().settings || {};
+    } else if (window.appState) {
+        settings = window.appState.settings || {};
+    } else {
+        try {
+            const saved = localStorage.getItem('appSettings');
+            if (saved) settings = JSON.parse(saved) || {};
+        } catch (e) {}
+    }
+    const apiKeys = settings.apiKeys || [];
+    const keyIndex = settings.currentApiKeyIndex || 0;
+    const apiKey = apiKeys[keyIndex];
+    if (!apiKey) return null;
+    return new GoogleGenAI({ apiKey });
 }
 
 function rotateApiModel() {
@@ -612,7 +651,7 @@ async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retr
                 }
 
                 try {
-                    const genAI = getGenAIClient();
+                    const genAI = getGenAIClient(getAppState);
                     if (!genAI) {
                         throw new Error("No valid API key found. Please add one in Settings.");
                     }
