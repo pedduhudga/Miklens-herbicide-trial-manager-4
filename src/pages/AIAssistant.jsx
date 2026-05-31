@@ -212,6 +212,16 @@ export default function AIAssistant({ onMenuClick }) {
       const trials = state.trials || [];
       const trialsCtx = trials.slice(0, 30).map(t => {
         const eff = safeJsonParse(t.EfficacyDataJSON, []);
+        
+        // Find baseline (DAA 0 or earliest DAA) weed cover to compute WCE
+        const sortedEff = [...eff].sort((a, b) => {
+          const daaA = a.daa ?? a.day ?? a.DAA ?? 0;
+          const daaB = b.daa ?? b.day ?? b.DAA ?? 0;
+          return daaA - daaB;
+        });
+        const baseline = sortedEff.find(obs => (obs.daa ?? obs.day ?? obs.DAA ?? 0) === 0) || sortedEff[0];
+        const baselineCover = baseline ? (baseline.weedCover ?? baseline.cover ?? null) : null;
+
         return {
           id: t.ID,
           formulation: t.FormulationName,
@@ -221,13 +231,34 @@ export default function AIAssistant({ onMenuClick }) {
           location: t.Location,
           date: t.Date,
           status: (t.IsCompleted === true || t.IsCompleted === 'true') ? 'Finalized' : 'Active',
-          observations: eff.map(obs => ({
-            daa: obs.daa ?? obs.day ?? obs.DAA ?? 0,
-            controlPct: obs.controlPct ?? obs.control ?? obs.efficacy ?? null,
-            weedCover: obs.weedCover ?? obs.cover ?? null,
-            cropInjury: obs.cropInjury ?? obs.injury ?? obs.injuryPct ?? null,
-            notes: obs.notes || ''
-          }))
+          observations: eff.map(obs => {
+            const daa = obs.daa ?? obs.day ?? obs.DAA ?? 0;
+            const weedCover = obs.weedCover ?? obs.cover ?? null;
+            let controlPct = obs.controlPct ?? obs.control ?? obs.efficacy ?? null;
+            
+            // Calculate WCE percentage based on weed cover reduction from baseline
+            let wce = null;
+            if (daa === 0) {
+              wce = 0; // DAA 0 baseline always has 0% weed control efficacy
+            } else if (baselineCover && weedCover !== null && baselineCover > 0) {
+              wce = Math.round(((baselineCover - weedCover) / baselineCover) * 1000) / 10;
+              wce = Math.max(-100, Math.min(100, wce));
+            }
+
+            // Fallback control percentage if null
+            if (controlPct === null && wce !== null) {
+              controlPct = wce;
+            }
+
+            return {
+              daa,
+              controlPct: controlPct,
+              weedCover: weedCover,
+              wcePct: wce,
+              cropInjury: obs.cropInjury ?? obs.injury ?? obs.injuryPct ?? null,
+              notes: obs.notes || ''
+            };
+          })
         };
       });
 
@@ -238,10 +269,11 @@ ${JSON.stringify(trialsCtx, null, 2)}
 Projects: ${(state.projects || []).map(p => p.Name).join(', ') || 'None'}
 Formulations: ${(state.formulations || []).map(f => f.Name).join(', ') || 'None'}
 CRITICAL ANSWERING GUIDELINES:
-1. **Mathematical Accuracy & Calculation**: When asked for the "highest average efficacy" or comparing formulations, you must calculate the mathematical average of the *final/latest* control percentage (controlPct) for each formulation. Ignore trials that have no controlPct observations or only baseline/0-1 day observations.
-2. **Timelines & Days After Application (DAA)**: Distinguish between baseline/early observations (e.g., DAA 0, 1, 3) and mature evaluation observations (e.g., DAA 7, 14, 21, 28). Do not treat a high weed cover on DAA 1 as a successful trial or final efficacy outcome.
-3. **Control % vs Weed Cover**: Understand that "controlPct" (control %) represents herbicidal success (higher is better, 100% is perfect control), whereas "weedCover" represents remaining weed presence (lower is better, higher indicates poor control unless it is an early baseline).
-4. **Human-Readable Trial Names & Clickable Hyperlinks**: NEVER display raw, unreadable Trial IDs (like "1780124537550") in your text. Instead, always represent every trial using its Formulation name and Dosage (e.g. "Goweed (Mik3) - 2.5 L/ha"). Additionally, you MUST wrap every trial name reference in a clickable Markdown hyperlink pointing exactly to its details hash route format: \`[Formulation - Dosage](#/trials?focus=TRIAL_ID)\`. For example, write \`[Goweed (Mik3) - 2.5 L/ha](#/trials?focus=1780124537550)\` so the user can click it to immediately open that specific trial!`;
+1. **DAA 0 Baseline (Zero Efficacy)**: IMPORTANT: Any observation at DAA 0 is a pre-treatment baseline. At DAA 0, the active Weed Control Efficacy (WCE% or controlPct) is mathematically strictly 0%, even if the WCE is labeled "Baseline" or controlPct/wcePct is null. A newly created trial (like "Goweed Ultra Base") that only has a DAA 0 baseline observation has 0% herbicidal control/efficacy. Do NOT say it has "100% control" or "100% result".
+2. **Prioritize Mature & Legacy Trials**: When evaluating which trial or formulation gave the best/most control, prioritize mature, legacy, or completed trials with observations at 7, 14, 21, or 28 DAA that show high controlPct (e.g. 80-100%). These represent actual established weed control.
+3. **Calculation of Average Efficacy**: To compute a formulation's average efficacy, calculate the mathematical average of the *final/latest* control percentage (controlPct / wcePct) of its mature observations (DAA > 0). Completely exclude/ignore trials that only have DAA 0 (baseline) observations.
+4. **Control % vs Weed Cover**: Remember that "controlPct" or "wcePct" represents active herbicidal success (higher is better, 100% is perfect control), whereas "weedCover" represents remaining weed presence (lower is better, higher indicates poor control unless it is an early baseline).
+5. **Human-Readable Trial Names & Clickable Hyperlinks**: NEVER display raw, unreadable Trial IDs (like "1780124537550") in your text. Instead, always represent every trial using its Formulation name and Dosage (e.g. "Goweed (Mik3) - 2.5 L/ha"). Additionally, you MUST wrap every trial name reference in a clickable Markdown hyperlink pointing exactly to its details hash route format: \`[Formulation - Dosage](#/trials?focus=TRIAL_ID)\`. For example, write \`[Goweed (Mik3) - 2.5 L/ha](#/trials?focus=1780124537550)\` so the user can click it to immediately open that specific trial!`;
 
       const fullPrompt = `${systemCtx}\n\nUser: ${userMsg}`;
       let reply;
