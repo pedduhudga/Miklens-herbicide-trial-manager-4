@@ -3,6 +3,18 @@ import { GoogleGenAI } from "@google/genai";
 
 const GEMINI_MODEL_PRIORITY = AVAILABLE_GEMINI_MODELS.map(m => m.id);
 
+/**
+ * Reset all Gemini quota/block state.
+ * Call whenever new API keys are saved, or to clear stale error state.
+ */
+export function resetGeminiState() {
+    if (typeof window === 'undefined') return;
+    window._geminiBlockedModels = {};
+    window.geminiQuotaBackoffUntil = 0;
+    window._lastAiUiErrorAt = 0;
+    console.log('[AI] Gemini block state cleared.');
+}
+
 function getActiveApiModel(getAppState) {
     let settings = {};
     if (getAppState) {
@@ -21538,15 +21550,4 @@ export function initAI(getAppState) {
     // during the initializeApp() sequence. We just need to ensure the app
     // is initialized for module consumers.
     console.log('[AI] Service initialized for module exports');
-}
-
-/**
- * Reset all Gemini quota/block state.
- * Call this whenever new API keys are saved, or to clear stale error state.
- */
-export function resetGeminiState() {
-    window._geminiBlockedModels = {};
-    window.geminiQuotaBackoffUntil = 0;
-    window._lastAiUiErrorAt = 0;
-    console.log('[AI] Gemini block state cleared.');
 }
