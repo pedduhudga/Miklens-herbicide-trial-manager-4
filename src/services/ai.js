@@ -585,7 +585,11 @@ async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retr
                             return _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retries + 1);
                         }
                         // All keys exhausted for this model ? move to next model, restart from key 0
-                        getAppState().settings.currentApiKeyIndex = 0;
+                        const appState = getAppState();
+                        appState.settings.currentApiKeyIndex = 0;
+                        if (window.setAppState) {
+                            window.setAppState(prev => ({...prev, settings: {...prev.settings, currentApiKeyIndex: 0}}));
+                        }
                         if (rotateApiModel()) {
                             return _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retries + 1);
                         }
@@ -660,7 +664,11 @@ async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retr
                             }
                             // All project keys exhausted for this model ? rotate model, restart from key 0
                             console.warn(`All ${keyCount} project keys exhausted for ${currentModel}. Rotating to next model.`);
-                            getAppState().settings.currentApiKeyIndex = 0;
+                            const appState = getAppState();
+                            appState.settings.currentApiKeyIndex = 0;
+                            if (window.setAppState) {
+                                window.setAppState(prev => ({...prev, settings: {...prev.settings, currentApiKeyIndex: 0}}));
+                            }
                             if (rotateApiModel()) {
                                 await new Promise(resolve => setTimeout(resolve, 300));
                                 return _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retries + 1);
@@ -715,8 +723,14 @@ async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retr
                             return _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retries + 1);
                         }
                         // As a last resort, force to gemini-2.5-flash (always available)
-                        state.settings.apiModel = 'gemini-2.5-flash';
-                        localStorage.setItem('appSettings', JSON.stringify(state.settings));
+                        const appState = getAppState ? getAppState() : (window.appState || { settings: {} });
+                        if (!appState.settings) appState.settings = {};
+                        appState.settings.apiModel = 'gemini-2.5-flash';
+                        
+                        if (window.setAppState) {
+                            window.setAppState(prev => ({...prev, settings: {...prev.settings, apiModel: 'gemini-2.5-flash'}}));
+                        }
+                        localStorage.setItem('appSettings', JSON.stringify(appState.settings));
                         const modelSelect = document.getElementById('settings-api-model');
                         if (modelSelect) modelSelect.value = 'gemini-2.5-flash';
                         return _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retries + 1);
