@@ -235,27 +235,35 @@ You must optimize for fast answers and strictly incorporate product formulation 
       const fullPrompt = `${systemCtx}\n\nUser: ${userMsg}`;
       let reply;
 
-      // We wrap the API call logic into a function that _callGeminiApiWithRetries can pass the genAI client into
+      // Use the new @google/genai SDK API: genAI.models.generateContent()
       const geminiCall = async (genAI) => {
-        // Because of the way ai.js handles the client, it returns a configured GoogleGenerativeAI client.
-        // Get the active model as defined globally in the app
-        const modelName = window._getActiveApiModel ? window._getActiveApiModel() : (state.settings?.selectedModel || 'gemini-2.0-flash');
-        const aiModel = genAI.getGenerativeModel({ model: modelName });
+        const modelName = state.settings?.apiModel || state.settings?.selectedModel || 'gemini-2.0-flash';
 
         if (img) {
-          const result = await aiModel.generateContent([
-             `${systemCtx}\n\nUser: ${userMsg}`,
-             {
-               inlineData: {
-                 data: img.base64,
-                 mimeType: img.mimeType
-               }
-             }
-          ]);
-          return result.response.text();
+          const response = await genAI.models.generateContent({
+            model: modelName,
+            contents: [
+              {
+                parts: [
+                  { text: `${systemCtx}\n\nUser: ${userMsg}` },
+                  { inlineData: { data: img.base64, mimeType: img.mimeType } }
+                ]
+              }
+            ]
+          });
+          const text = response?.candidates?.[0]?.content?.parts?.[0]?.text
+            || (typeof response?.text === 'function' ? response.text() : response?.text)
+            || '';
+          return text;
         } else {
-          const result = await aiModel.generateContent(fullPrompt);
-          return result.response.text();
+          const response = await genAI.models.generateContent({
+            model: modelName,
+            contents: [{ parts: [{ text: fullPrompt }] }]
+          });
+          const text = response?.candidates?.[0]?.content?.parts?.[0]?.text
+            || (typeof response?.text === 'function' ? response.text() : response?.text)
+            || '';
+          return text;
         }
       };
 
