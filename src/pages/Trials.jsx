@@ -1575,6 +1575,14 @@ export default function Trials({ onMenuClick }) {
     setIsCameraOpen(true);
   }, []);
 
+  const handleQuickGalleryUpload = useCallback((trial) => {
+    setActiveTrial(trial);
+    setCameraMode('general');
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }, []);
+
   const handleActivateToggle = useCallback(async (trial) => {
     const isCurrentlyLive = String(trial.IsLive) !== 'false';
     const patch = isCurrentlyLive
@@ -2085,6 +2093,7 @@ Exactly 2 sentences. Follow this structure:
                   onActivateToggle={handleActivateToggle}
                   onQuickRate={handleQuickRate}
                   onQuickPhoto={handleQuickPhoto}
+                  onQuickGalleryUpload={handleQuickGalleryUpload}
                   onMarkComplete={handleMarkComplete}
                   onEditControlDays={handleEditControlDays}
                 />
