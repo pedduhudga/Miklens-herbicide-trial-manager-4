@@ -8,6 +8,12 @@ function getActiveApiModel() {
     return state?.settings?.apiModel || state?.settings?.selectedModel || 'gemini-3.1-flash-lite';
 }
 
+function getGeminiQuotaBlockKey(model) {
+    const state = window.appState || { settings: {} };
+    const apiKeyIndex = state?.settings?.currentApiKeyIndex || 0;
+    return `${model}_key${apiKeyIndex}`;
+}
+
 function rotateApiModel() {
     const state = window.appState || { settings: {} };
     if (!state.settings) state.settings = {};
