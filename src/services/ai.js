@@ -1,6 +1,8 @@
 import { AVAILABLE_GEMINI_MODELS } from '../utils/aiConstants.js';
 import { GoogleGenAI } from "@google/genai";
 
+const GEMINI_MODEL_PRIORITY = AVAILABLE_GEMINI_MODELS.map(m => m.id);
+
 export class MultiProviderAI {
 
                 constructor() {
