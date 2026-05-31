@@ -3,7 +3,7 @@ import { useAppState } from '../hooks/useAppState.jsx';
 import TopBar from '../components/TopBar.jsx';
 import { Sparkles, SendHorizontal, Trash2, Copy, Check, Paperclip, X, Mic, MicOff, Image, Search, PlusCircle, MessageSquare } from 'lucide-react';
 import { safeJsonParse } from '../utils/helpers.js';
-import { _callGeminiApiWithRetries } from '../services/ai.js';
+import { _callGeminiApiWithRetries, resetGeminiState } from '../services/ai.js';
 import { getAiChatSessions, saveAiChatSession, deleteAiChatSession } from '../services/dataLayer.js';
 
 const SUGGESTED_PROMPTS = [
@@ -49,6 +49,12 @@ export default function AIAssistant({ onMenuClick }) {
       };
       updateState({ aiChatSessions: [legacySession], aiChatHistory: [] });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Clear stale Gemini quota/block cache every time the AI assistant is opened
+  useEffect(() => {
+    resetGeminiState();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
