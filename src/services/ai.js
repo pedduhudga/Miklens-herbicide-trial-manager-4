@@ -9,11 +9,30 @@ const GEMINI_MODEL_PRIORITY = AVAILABLE_GEMINI_MODELS.map(m => m.id);
  */
 export function resetGeminiState() {
     if (typeof window === 'undefined') return;
-    window._geminiBlockedModels = {};
+    
+    let savedBlocks = {};
+    try {
+        const raw = localStorage.getItem('ai_blocked_models');
+        if (raw) savedBlocks = JSON.parse(raw) || {};
+    } catch (e) {}
+    
+    const activeBlocks = {};
+    const now = Date.now();
+    for (const key in savedBlocks) {
+        if (savedBlocks[key] > now) {
+            activeBlocks[key] = savedBlocks[key];
+        }
+    }
+    
+    window._geminiBlockedModels = activeBlocks;
+    try {
+        localStorage.setItem('ai_blocked_models', JSON.stringify(activeBlocks));
+    } catch (e) {}
+    
     window.geminiQuotaBackoffUntil = 0;
     window._lastAiUiErrorAt = 0;
     window._activeApiModelOverride = null;
-    console.log('[AI] Gemini block state cleared.');
+    console.log('[AI] Gemini block state initialized (active blocks persisted).');
 }
 
 function getActiveApiModel(getAppState) {
@@ -745,6 +764,9 @@ async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retr
                             // IMPORTANT: each key is from a DIFFERENT Google project ? independent daily quota.
                             // Rotate to next key and try the SAME model - it may work on the next project.
                             blockedModels[currentBlockKey] = Date.now() + (82800 * 1000); // 23 hours
+                            try {
+                                localStorage.setItem('ai_blocked_models', JSON.stringify(blockedModels));
+                            } catch (e) {}
                             console.warn(`Daily quota hit: ${currentModel} key ${keyIdx} blocked for 23h. Checking other project keys...`);
                             showToast(`Key ${keyIdx} daily limit reached for ${currentModel}. Trying next project key...`, 'warning');
 
@@ -767,6 +789,9 @@ async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retr
                         } else {
                             // Per-minute / transient rate limit - block briefly, try next model first
                             blockedModels[currentBlockKey] = Date.now() + (retryDelaySec * 1000);
+                            try {
+                                localStorage.setItem('ai_blocked_models', JSON.stringify(blockedModels));
+                            } catch (e) {}
                             console.warn(`Rate limit: ${currentModel} key ${keyIdx} blocked for ${retryDelaySec}s. Rotating model...`);
 
                             if (rotateApiModel()) {
