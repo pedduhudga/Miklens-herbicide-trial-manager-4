@@ -133,6 +133,7 @@ export default function Trials({ onMenuClick }) {
   // --- Cropper ---
   const [cropperOpen, setCropperOpen] = useState(false);
   const [cropSource, setCropSource] = useState(null);
+  const quickActionTrialRef = useRef(null);
   const cropCallbackRef = useRef(null);
 
   // --- QR Code ---
@@ -699,36 +700,37 @@ export default function Trials({ onMenuClick }) {
     }
   };
 
-  const saveAndAnalyzePhoto = async (dataUrl, photoDateStr) => {
-    if (!activeTrial) return;
+  const saveAndAnalyzePhoto = async (dataUrl, photoDateStr, targetTrialOverride = null) => {
+    const targetTrial = targetTrialOverride || activeTrial;
+    if (!targetTrial) return;
 
     const photoDate = photoDateStr || new Date().toISOString().split('T')[0];
-    const fileName = `photo_${activeTrial.ID}_${Date.now()}.jpg`;
+    const fileName = `photo_${targetTrial.ID}_${Date.now()}.jpg`;
     const tempId = `local_${Date.now()}`;
 
     // Build Drive folder path — same convention as HTML app:
     // Standard trial (no ProjectID): ['Ungrouped Projects', 'FormulationName (date)']
     // RCBD trial (has ProjectID):    ['ProjectName', 'FormulationName (date)']
-    const project = activeTrial.ProjectID
-      ? (state.projects || []).find(p => p.ID === activeTrial.ProjectID)
+    const project = targetTrial.ProjectID
+      ? (state.projects || []).find(p => p.ID === targetTrial.ProjectID)
       : null;
     const projectName = project ? project.Name : 'Ungrouped Projects';
-    const trialNameWithDate = `${activeTrial.FormulationName || 'Unknown Formulation'} (${activeTrial.Date ? activeTrial.Date.split('T')[0] : photoDate})`.trim();
+    const trialNameWithDate = `${targetTrial.FormulationName || 'Unknown Formulation'} (${targetTrial.Date ? targetTrial.Date.split('T')[0] : photoDate})`.trim();
     const folderPath = [projectName, trialNameWithDate];
 
     // Optimistically add a placeholder with tempId so the photo appears immediately
     const photoEntry = { tempId, fileData: dataUrl, date: photoDate, label: cameraMode === 'weed' ? 'Weed Photo' : 'Field Observation', identifications: [] };
-    const photosOptimistic = [...safeJsonParse(activeTrial.PhotoURLs, []), photoEntry];
-    const optimisticTrial = { ...activeTrial, PhotoURLs: JSON.stringify(photosOptimistic) };
+    const photosOptimistic = [...safeJsonParse(targetTrial.PhotoURLs, []), photoEntry];
+    const optimisticTrial = { ...targetTrial, PhotoURLs: JSON.stringify(photosOptimistic) };
     updateState({ trials: trials.map(t => t.ID === optimisticTrial.ID ? optimisticTrial : t) });
-    setActiveTrial(optimisticTrial);
+    if (activeTrial?.ID === targetTrial.ID) setActiveTrial(optimisticTrial);
 
     window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: `Uploading to Drive (${projectName} / ${trialNameWithDate})...`, type: 'info' } }));
 
     try {
       // 1. Upload photo to Google Drive via dataLayer (works in Firebase + Sheet modes)
       const uploadResult = await uploadPhoto({
-        trialId: activeTrial.ID,
+        trialId: targetTrial.ID,
         fileData: dataUrl,
         mimeType: 'image/jpeg',
         fileName,
@@ -740,10 +742,10 @@ export default function Trials({ onMenuClick }) {
 
       if (uploadResult?._errType) {
         // Remove the optimistic placeholder from UI since upload failed
-        const rollback = safeJsonParse(activeTrial.PhotoURLs, []).filter(p => p.tempId !== tempId);
-        const rolledBack = { ...activeTrial, PhotoURLs: JSON.stringify(rollback) };
+        const rollback = safeJsonParse(targetTrial.PhotoURLs, []).filter(p => p.tempId !== tempId);
+        const rolledBack = { ...targetTrial, PhotoURLs: JSON.stringify(rollback) };
         updateState({ trials: trials.map(t => t.ID === rolledBack.ID ? rolledBack : t) });
-        setActiveTrial(rolledBack);
+        if (activeTrial?.ID === targetTrial.ID) setActiveTrial(rolledBack);
         const isConfig = uploadResult._errType === 'config';
         window.dispatchEvent(new CustomEvent('app:toast', { detail: {
           msg: isConfig
@@ -757,21 +759,21 @@ export default function Trials({ onMenuClick }) {
       const driveUrl = uploadResult?.url || uploadResult?.fileUrl || null;
 
       // 2. Replace placeholder with final Drive URL entry
-      const currentPhotos = safeJsonParse(activeTrial.PhotoURLs, []).filter(p => p.tempId !== tempId);
+      const currentPhotos = safeJsonParse(targetTrial.PhotoURLs, []).filter(p => p.tempId !== tempId);
       const finalEntry = driveUrl
         ? { url: driveUrl, date: photoDate, label: photoEntry.label, identifications: [] }
         : { ...photoEntry, tempId: undefined };
       currentPhotos.push(finalEntry);
 
-      const updatedTrial = { ...activeTrial, PhotoURLs: JSON.stringify(currentPhotos) };
+      const updatedTrial = { ...targetTrial, PhotoURLs: JSON.stringify(currentPhotos) };
       updateState({ trials: trials.map(t => t.ID === updatedTrial.ID ? updatedTrial : t) });
-      setActiveTrial(updatedTrial);
+      if (activeTrial?.ID === targetTrial.ID) setActiveTrial(updatedTrial);
 
       await updateTrial({ ID: updatedTrial.ID, PhotoURLs: updatedTrial.PhotoURLs }, getAppState);
 
       window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: driveUrl ? 'Photo saved to Drive! Starting AI analysis...' : 'Photo saved locally. Starting AI analysis...', type: 'info' } }));
 
-      const trialDate = new Date(activeTrial.Date);
+      const trialDate = new Date(targetTrial.Date);
       const pDate = new Date(photoDate);
       const daa = Math.max(0, Math.round((pDate.getTime() - trialDate.getTime()) / (1000 * 60 * 60 * 24)));
 
@@ -814,8 +816,8 @@ export default function Trials({ onMenuClick }) {
         } catch(we) { console.warn('Weather fetch failed:', we.message); }
       };
 
-      if (activeTrial?.Lat && activeTrial?.Lon) {
-        await fetchWeatherForPhoto(activeTrial.Lat, activeTrial.Lon);
+      if (targetTrial?.Lat && targetTrial?.Lon) {
+        await fetchWeatherForPhoto(targetTrial.Lat, targetTrial.Lon);
       } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           pos => fetchWeatherForPhoto(pos.coords.latitude.toFixed(6), pos.coords.longitude.toFixed(6)),
@@ -824,15 +826,15 @@ export default function Trials({ onMenuClick }) {
       }
 
       const result = await analyzePhoto(dataUrl, {
-        treatment: activeTrial.FormulationName,
+        treatment: targetTrial.FormulationName,
         daa,
-        rep: activeTrial.Replication || 1
+        rep: targetTrial.Replication || 1
       }, (msg) => {
         window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg, type: 'info' } }));
       });
 
       if (result.success) {
-        await createObservationFromAI(activeTrial, daa, result.data);
+        await createObservationFromAI(targetTrial, daa, result.data);
         window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: `AI complete! Logged ${result.data.weeds?.length || 0} weed species at DAA ${daa}`, type: 'success' } }));
         // Auto-run cover detection in background
         detectWeedCoverAI(dataUrl).then(coverResult => {
@@ -848,23 +850,27 @@ export default function Trials({ onMenuClick }) {
     }
   };
 
-  const promptPhotoDate = (dataUrl) => {
-    setPendingPhotoAnalysis({ dataUrl, date: new Date().toISOString().split('T')[0] });
+  const promptPhotoDate = (dataUrl, targetTrial = null) => {
+    setPendingPhotoAnalysis({ dataUrl, date: new Date().toISOString().split('T')[0], targetTrial });
   };
 
   const handleCapturePhoto = (dataUrl) => {
-    if (!activeTrial) return;
+    const targetTrial = quickActionTrialRef.current || activeTrial;
+    if (!targetTrial) return;
+    quickActionTrialRef.current = null;
     setIsCameraOpen(false);
-    openCropperFor(dataUrl, promptPhotoDate);
+    openCropperFor(dataUrl, (url) => promptPhotoDate(url, targetTrial));
   };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !activeTrial) return;
+    const targetTrial = quickActionTrialRef.current || activeTrial;
+    if (!file || !targetTrial) return;
+    quickActionTrialRef.current = null;
     const reader = new FileReader();
     reader.onload = (ev) => {
       e.target.value = '';
-      openCropperFor(ev.target.result, promptPhotoDate);
+      openCropperFor(ev.target.result, (url) => promptPhotoDate(url, targetTrial));
     };
     reader.readAsDataURL(file);
   };
@@ -1570,13 +1576,13 @@ export default function Trials({ onMenuClick }) {
   }, [trials, activeTrial, getAppState, updateState, syncTrialToQrScript]);
 
   const handleQuickPhoto = useCallback((trial) => {
-    setActiveTrial(trial);
+    quickActionTrialRef.current = trial;
     setCameraMode('general');
     setIsCameraOpen(true);
   }, []);
 
   const handleQuickGalleryUpload = useCallback((trial) => {
-    setActiveTrial(trial);
+    quickActionTrialRef.current = trial;
     setCameraMode('general');
     if (fileInputRef.current) {
       fileInputRef.current.click();
@@ -3732,19 +3738,22 @@ Exactly 2 sentences. Follow this structure:
                 onChange={e => setPendingPhotoAnalysis(p => ({ ...p, date: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400" />
             </div>
-            {activeTrial?.Date && pendingPhotoAnalysis.date && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-800">
-                DAA: <strong>{Math.max(0, Math.round((new Date(pendingPhotoAnalysis.date) - new Date(activeTrial.Date)) / 86400000))}</strong> days after application
-                {activeTrial?.Lat && activeTrial?.Lon && <span className="ml-2 text-emerald-600">• Weather will be auto-fetched</span>}
-              </div>
-            )}
+            {(() => {
+              const targetTrialForPhoto = pendingPhotoAnalysis.targetTrial || activeTrial;
+              return targetTrialForPhoto?.Date && pendingPhotoAnalysis.date ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-800">
+                  DAA: <strong>{Math.max(0, Math.round((new Date(pendingPhotoAnalysis.date) - new Date(targetTrialForPhoto.Date)) / 86400000))}</strong> days after application
+                  {targetTrialForPhoto?.Lat && targetTrialForPhoto?.Lon && <span className="ml-2 text-emerald-600">• Weather will be auto-fetched</span>}
+                </div>
+              ) : null;
+            })()}
             <div className="flex justify-end gap-3 pt-2 border-t">
               <button onClick={() => setPendingPhotoAnalysis(null)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancel</button>
               <button
                 onClick={() => {
-                  const { dataUrl, date } = pendingPhotoAnalysis;
+                  const { dataUrl, date, targetTrial } = pendingPhotoAnalysis;
                   setPendingPhotoAnalysis(null);
-                  saveAndAnalyzePhoto(dataUrl, date);
+                  saveAndAnalyzePhoto(dataUrl, date, targetTrial);
                 }}
                 className="px-5 py-2 rounded-lg text-sm font-semibold bg-violet-600 text-white hover:bg-violet-700 flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5" /> Analyse Photo
