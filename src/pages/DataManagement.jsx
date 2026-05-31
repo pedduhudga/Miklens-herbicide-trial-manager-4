@@ -190,6 +190,67 @@ export default function DataManagement({ onMenuClick }) {
     toast(`Rebuilt cover for ${rebuilt} trials`, 'success');
   };
 
+  const handleRecalculateWceAll = () => {
+    const trials = [...(state.trials || [])];
+    let updatedCount = 0;
+    
+    const updated = trials.map(t => {
+      const eff = safeJsonParse(t.EfficacyDataJSON, []);
+      if (!eff.length) return t;
+      
+      const sortedEff = [...eff].sort((a, b) => {
+        const daaA = a.daa ?? a.day ?? a.DAA ?? 0;
+        const daaB = b.daa ?? b.day ?? b.DAA ?? 0;
+        return daaA - daaB;
+      });
+      
+      const baseline = sortedEff.find(o => (o.daa ?? o.day ?? o.DAA ?? 0) === 0) || sortedEff[0];
+      const baselineCover = baseline ? (baseline.weedCover ?? baseline.cover ?? null) : null;
+      
+      if (baselineCover === null || baselineCover <= 0) return t;
+      
+      let changed = false;
+      const newEff = eff.map(obs => {
+        const daa = obs.daa ?? obs.day ?? obs.DAA ?? 0;
+        const weedCover = obs.weedCover ?? obs.cover ?? null;
+        
+        const currentWce = obs.wce ?? obs.WCE ?? null;
+        const currentControlPct = obs.controlPct ?? obs.control ?? obs.efficacy ?? null;
+        
+        let computedWce = null;
+        if (daa === 0) {
+          computedWce = 0;
+        } else if (weedCover !== null) {
+          computedWce = ((baselineCover - weedCover) / baselineCover) * 100;
+          computedWce = Math.max(-100, Math.min(200, Math.round(computedWce * 10) / 10));
+        }
+        
+        if (computedWce !== null && (currentWce !== computedWce || currentControlPct !== computedWce)) {
+          changed = true;
+          return {
+            ...obs,
+            wce: computedWce,
+            controlPct: computedWce
+          };
+        }
+        return obs;
+      });
+      
+      if (changed) {
+        updatedCount++;
+        return {
+          ...t,
+          EfficacyDataJSON: JSON.stringify(newEff)
+        };
+      }
+      return t;
+    });
+    
+    updateState({ trials: updated });
+    setRepairProgress(`WCE % Recalculation complete: ${updatedCount} trial(s) successfully repaired with proper Weed Control Efficacy metrics.`);
+    toast(`Recalculated WCE % for ${updatedCount} trials`, 'success');
+  };
+
   // ── AI Bulk Analysis ──────────────────────────────────────────────────────
   const startBulkAnalysis = () => {
     const needsAnalysis = (state.trials || []).filter(
@@ -504,6 +565,10 @@ Provide a 2-sentence summary of expected efficacy based on typical performance p
             <button onClick={handleRebuildCoverAll}
               className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700 transition">
               Rebuild %Cover (All Trials)
+            </button>
+            <button onClick={handleRecalculateWceAll}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+              Recalculate Efficacy (WCE%)
             </button>
           </div>
           {scanSummary && (
