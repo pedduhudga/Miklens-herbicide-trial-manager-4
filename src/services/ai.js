@@ -3,6 +3,59 @@ import { GoogleGenAI } from "@google/genai";
 
 const GEMINI_MODEL_PRIORITY = AVAILABLE_GEMINI_MODELS.map(m => m.id);
 
+function getActiveApiModel() {
+    const state = window.appState || { settings: {} };
+    return state?.settings?.apiModel || state?.settings?.selectedModel || 'gemini-3.1-flash-lite';
+}
+
+function rotateApiModel() {
+    const state = window.appState || { settings: {} };
+    if (!state.settings) state.settings = {};
+    const currentModel = getActiveApiModel();
+    const currentIndex = GEMINI_MODEL_PRIORITY.indexOf(currentModel);
+    if (currentIndex === -1 || currentIndex >= GEMINI_MODEL_PRIORITY.length - 1) {
+        state.settings.apiModel = GEMINI_MODEL_PRIORITY[0];
+    } else {
+        state.settings.apiModel = GEMINI_MODEL_PRIORITY[currentIndex + 1];
+    }
+    if (window.setAppState) {
+        window.setAppState(prev => ({...prev, settings: {...prev.settings, apiModel: state.settings.apiModel}}));
+    }
+    return true;
+}
+
+function rotateApiKey(sameModel = false) {
+    const state = window.appState || { settings: { apiKeys: [] } };
+    if (!state.settings) state.settings = { apiKeys: [] };
+    const keys = state.settings.apiKeys || [];
+    if (keys.length <= 1) return false;
+    
+    state.settings.currentApiKeyIndex = ((state.settings.currentApiKeyIndex || 0) + 1) % keys.length;
+    if (window.setAppState) {
+        window.setAppState(prev => ({...prev, settings: {...prev.settings, currentApiKeyIndex: state.settings.currentApiKeyIndex}}));
+    }
+    return true;
+}
+
+function hasUnblockedKeyForModel(model) {
+    const keys = (window.appState || {})?.settings?.apiKeys || [];
+    return keys.length > 1;
+}
+
+function extractResponseText(response) {
+    if (response && typeof response.text === 'function') return response.text();
+    if (response && response.text) return response.text;
+    if (response && response.candidates && response.candidates[0] && response.candidates[0].content && response.candidates[0].content.parts) {
+        return response.candidates[0].content.parts.map(p => p.text).join('');
+    }
+    return JSON.stringify(response);
+}
+
+function showToast(message, type) {
+    console.log(`[Toast ${type}] ${message}`);
+}
+window._getActiveApiModel = getActiveApiModel;
+
 export class MultiProviderAI {
 
                 constructor() {
