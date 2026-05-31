@@ -241,10 +241,10 @@ You must optimize for fast answers and strictly incorporate product formulation 
       const fullPrompt = `${systemCtx}\n\nUser: ${userMsg}`;
       let reply;
 
-      // Use the new @google/genai SDK API: genAI.models.generateContent()
       const geminiCall = async (genAI) => {
-        const modelName = state.settings?.apiModel || state.settings?.selectedModel || 'gemini-3.1-flash-lite';
-
+        const currentSettings = getAppState()?.settings || {};
+        const modelName = currentSettings.apiModel || currentSettings.selectedModel || 'gemini-3.1-flash-lite';
+          
         if (img) {
           const response = await genAI.models.generateContent({
             model: modelName,
