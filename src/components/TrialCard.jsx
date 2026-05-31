@@ -10,6 +10,14 @@ const RESULT_COLORS = {
   'Control': 'bg-purple-100 text-purple-700',
 };
 
+const RESULT_BORDER_COLORS = {
+  'Excellent': 'border-l-4 border-emerald-500',
+  'Good': 'border-l-4 border-blue-500',
+  'Fair': 'border-l-4 border-amber-500',
+  'Poor': 'border-l-4 border-red-500',
+  '': 'border-l-4 border-slate-200',
+};
+
 function ResultBadge({ result }) {
   const style = RESULT_COLORS[result] || 'bg-slate-100 text-slate-600';
   return (
@@ -43,6 +51,7 @@ const TrialCard = memo(function TrialCard({
   onActivateToggle,
   onQuickRate,
   onQuickPhoto,
+  onQuickGalleryUpload,
   onMarkComplete,
   onEditControlDays,
 }) {
@@ -153,6 +162,11 @@ const TrialCard = memo(function TrialCard({
     onQuickPhoto && onQuickPhoto(trial);
   }, [onQuickPhoto, trial]);
 
+  const handleQuickGalleryUpload = useCallback((e) => {
+    e.stopPropagation();
+    onQuickGalleryUpload && onQuickGalleryUpload(trial);
+  }, [onQuickGalleryUpload, trial]);
+
   const handleMarkComplete = useCallback((e) => {
     e.stopPropagation();
     onMarkComplete && onMarkComplete(trial);
@@ -165,10 +179,13 @@ const TrialCard = memo(function TrialCard({
 
   const stopPropagation = useCallback((e) => e.stopPropagation(), []);
 
+  const resultBorderClass = RESULT_BORDER_COLORS[trial.Result || ''] || RESULT_BORDER_COLORS[''];
+
   return (
     <div
       onClick={handleCardClick}
       className={`bg-white rounded-xl shadow-sm relative transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md cursor-pointer flex flex-col
+        ${resultBorderClass}
         ${isSelected ? 'border-2 border-emerald-500 ring-2 ring-emerald-100' : 'border border-slate-100 hover:border-emerald-300'}`}
     >
       {/* Checkbox */}
@@ -325,11 +342,18 @@ const TrialCard = memo(function TrialCard({
       </div>
 
       <div className="border-t px-3 py-2 flex items-center justify-between" onClick={stopPropagation}>
-        <button onClick={handleQuickPhoto}
-          title="Add Photo"
-          className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition">
-          <Camera className="w-3.5 h-3.5" /> Photo
-        </button>
+        <div className="flex gap-1">
+          <button onClick={handleQuickPhoto}
+            title="Add Photo"
+            className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition">
+            <Camera className="w-3.5 h-3.5" /> Photo
+          </button>
+          <button onClick={handleQuickGalleryUpload}
+            title="Upload from Gallery"
+            className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition">
+            <Image className="w-3.5 h-3.5" /> Gallery
+          </button>
+        </div>
         <button onClick={() => onViewDetails(trial)}
           className="text-xs text-emerald-600 font-semibold flex items-center gap-1 hover:underline">
           View Details <ChevronRight className="w-3.5 h-3.5" />
