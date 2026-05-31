@@ -705,7 +705,7 @@ async function _callGeminiApiWithRetries_impl(apiCallFunction, getAppState, retr
                 } catch (error) {
                     const errorMessage = (error.message || '').toLowerCase();
                     const statusCode = error.status || error.httpStatusCode || 0;
-                    console.error('Gemini API Error:', error.message, 'status:', statusCode, 'Full error:', error);
+                    console.warn('Gemini API Error (retrying/rotating):', error.message, 'status:', statusCode);
 
                     // Check for specific error types using both message and status code
                     if (statusCode === 400 || errorMessage.includes('api key not valid') || errorMessage.includes('invalid api key') || errorMessage.includes('api_key_invalid')) {
