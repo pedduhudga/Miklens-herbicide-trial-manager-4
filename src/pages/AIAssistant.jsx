@@ -242,8 +242,10 @@ You must optimize for fast answers and strictly incorporate product formulation 
       let reply;
 
       const geminiCall = async (genAI) => {
-        const currentSettings = getAppState()?.settings || {};
-        const modelName = currentSettings.apiModel || currentSettings.selectedModel || 'gemini-3.1-flash-lite';
+        const modelName = (typeof window !== 'undefined' && window._activeApiModelOverride)
+          || getAppState()?.settings?.apiModel
+          || getAppState()?.settings?.selectedModel
+          || 'gemini-3.1-flash-lite';
           
         if (img) {
           const response = await genAI.models.generateContent({
