@@ -434,7 +434,7 @@ export default function Trials({ onMenuClick }) {
       const apiKey = state.settings?.geminiApiKey || (state.settings?.geminiApiKeys || state.settings?.apiKeys || [])[0];
 
       // Extract Drive file ID if this is a Google Drive URL
-      const driveMatch = typeof imageUrl === 'string' && imageUrl.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=download&)?id=|thumbnail\?(?:[^&]*&)?id=)([a-zA-Z0-9_-]+)/);
+      const driveMatch = typeof imageUrl === 'string' && imageUrl.includes('drive.google.com') && imageUrl.match(/(?:[?&]id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
       const driveFileId = driveMatch ? driveMatch[1] : null;
 
       if (driveFileId) {
@@ -2924,7 +2924,7 @@ Exactly 2 sentences. Follow this structure:
                       {detailPhotos.map((photo, idx) => {
                         const rawSrc = photo.fileData || photo.url || (typeof photo === 'string' ? photo : null);
                         if (!rawSrc) return null;
-                        const driveMatch = typeof rawSrc === 'string' && rawSrc.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/);
+                        const driveMatch = typeof rawSrc === 'string' && rawSrc.includes('drive.google.com') && rawSrc.match(/(?:[?&]id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
                         const src = driveMatch
                           ? `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w400`
                           : rawSrc;

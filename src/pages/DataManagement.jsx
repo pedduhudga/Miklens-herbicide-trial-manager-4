@@ -774,7 +774,7 @@ export default function DataManagement({ onMenuClick }) {
         if (!photoUrl) continue;
 
         // Extract Drive file ID if this is a Google Drive URL
-        const driveMatch = typeof photoUrl === 'string' && photoUrl.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=download&)?id=|thumbnail\?(?:[^&]*&)?id=)([a-zA-Z0-9_-]+)/);
+        const driveMatch = typeof photoUrl === 'string' && photoUrl.includes('drive.google.com') && photoUrl.match(/(?:[?&]id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
         const driveFileId = driveMatch ? driveMatch[1] : null;
         let fileDataPayload = null;
 

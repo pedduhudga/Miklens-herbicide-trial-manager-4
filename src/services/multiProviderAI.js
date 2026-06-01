@@ -213,10 +213,10 @@ function parseAIJson(text) {
   return JSON.parse(match[1] || match[0]);
 }
 
-// Extract Google Drive file ID from any Drive URL variant
 function getDriveFileId(url) {
   if (typeof url !== 'string') return null;
-  const m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=download&)?id=|thumbnail\?(?:[^&]*&)?id=)([a-zA-Z0-9_-]+)/);
+  if (!url.includes('drive.google.com')) return null;
+  const m = url.match(/(?:[?&]id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
   return m ? m[1] : null;
 }
 

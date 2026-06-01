@@ -16193,12 +16193,13 @@ Style Guidelines:
 
                     // Convert Google Drive /view URLs to download-friendly format
                     let fetchUrl = url;
-                    const driveViewMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/);
-                    if (driveViewMatch) {
-                        const fileId = driveViewMatch[1];
-                        // Use the uc endpoint which is more reliable for direct fetches
-                        fetchUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
-                        console.log(`[Photo Fetch] Converted Drive URL to: ${fetchUrl}`);
+                    if (url.includes('drive.google.com')) {
+                        const driveMatch = url.match(/(?:[?&]id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
+                        if (driveMatch) {
+                            const fileId = driveMatch[1];
+                            fetchUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
+                            console.log(`[Photo Fetch] Converted Drive URL to: ${fetchUrl}`);
+                        }
                     }
 
                     // Use the proxy to avoid CORS issues
