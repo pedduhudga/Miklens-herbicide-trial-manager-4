@@ -734,26 +734,40 @@ export default function DataManagement({ onMenuClick }) {
       return;
     }
     
-    if (!window.confirm("⚠️ This will sequentially re-analyze all photos in ALL trials using Gemini AI to correct the weed cover estimates. This will consume a lot of Gemini API key credits. Do you want to proceed?")) return;
-
-    const trials = [...(state.trials || [])];
-    if (!trials.length) {
+    const allTrials = [...(state.trials || [])];
+    if (!allTrials.length) {
       toast('No trials on record to analyze', 'info');
       return;
+    }
+
+    const selectedTrials = state.selectedTrials || [];
+    let trialsToProcess = [...allTrials];
+    let isSubset = false;
+
+    if (selectedTrials.length > 0) {
+      const useSelected = window.confirm(`You have ${selectedTrials.length} trials selected in the Trials tab. Do you want to re-analyze ONLY these ${selectedTrials.length} selected trials?\n\n- Click OK to analyze ONLY the ${selectedTrials.length} selected trials.\n- Click Cancel to analyze ALL ${allTrials.length} trials.`);
+      if (useSelected) {
+        trialsToProcess = allTrials.filter(t => selectedTrials.includes(t.ID));
+        isSubset = true;
+      } else {
+        if (!window.confirm(`⚠️ This will sequentially re-analyze all photos in ALL ${allTrials.length} trials using Gemini AI to correct the weed cover estimates. This will consume a lot of Gemini API key credits. Do you want to proceed?`)) return;
+      }
+    } else {
+      if (!window.confirm(`⚠️ This will sequentially re-analyze all photos in ALL ${allTrials.length} trials using Gemini AI to correct the weed cover estimates. This will consume a lot of Gemini API key credits. Do you want to proceed?`)) return;
     }
 
     setRepairProgress('');
     setScanSummary('');
     setRepairState({
       isRunning: true,
-      taskName: 'Force AI Re-analysis of All Photos',
+      taskName: `Force AI Re-analysis of ${isSubset ? trialsToProcess.length + ' Selected' : 'All'} Trials`,
       progress: 0,
-      total: trials.length,
+      total: trialsToProcess.length,
       currentTrialName: ''
     });
 
     let updatedCount = 0;
-    const currentTrials = [...trials];
+    const currentTrials = [...trialsToProcess];
 
     for (let i = 0; i < currentTrials.length; i++) {
       const trial = currentTrials[i];
