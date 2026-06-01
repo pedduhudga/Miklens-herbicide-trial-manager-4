@@ -733,6 +733,27 @@ export default function DataManagement({ onMenuClick }) {
       toast('No Gemini API key configured. Please add one in Settings.', 'error');
       return;
     }
+
+    const fetchGeminiWithRetry = async (url, options, maxRetries = 4) => {
+      let delay = 1500;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const res = await fetch(url, options);
+          if (res.ok) return res;
+          
+          const isTransient = res.status === 429 || (res.status >= 500 && res.status <= 599);
+          if (!isTransient || attempt === maxRetries) {
+            throw new Error(`Gemini API error: ${res.status}`);
+          }
+          console.warn(`[AI Retry] Attempt ${attempt} failed with status ${res.status}. Retrying in ${delay}ms...`);
+        } catch (err) {
+          if (attempt === maxRetries) throw err;
+          console.warn(`[AI Retry] Attempt ${attempt} caught error: ${err.message}. Retrying in ${delay}ms...`);
+        }
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+      }
+    };
     
     const allTrials = [...(state.trials || [])];
     if (!allTrials.length) {
@@ -839,7 +860,7 @@ Return ONLY a raw JSON object with this schema:
 }`;
 
         try {
-          const response = await fetch(
+          const response = await fetchGeminiWithRetry(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
             {
               method: 'POST',
@@ -857,8 +878,6 @@ Return ONLY a raw JSON object with this schema:
               }),
             }
           );
-
-          if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
           const resJson = await response.json();
           const jsonText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
           const aiData = JSON.parse(jsonText.replace(/```json/g, '').replace(/```/g, '').trim());
