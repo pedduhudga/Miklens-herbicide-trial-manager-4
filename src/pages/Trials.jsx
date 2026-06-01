@@ -15,7 +15,7 @@ import {
   FileCode, MonitorPlay, Archive, Pencil, ScanLine, Crop, Clock
 } from 'lucide-react';
 import { safeJsonParse } from '../utils/helpers.js';
-import { calculateDAA } from '../utils/dateUtils.js';
+import { calculateDAA, toDateKey } from '../utils/dateUtils.js';
 import { validateEfficacyData } from '../utils/analysisUtils.js';
 import CameraCapture from '../components/CameraCapture.jsx';
 import CropperModal from '../components/CropperModal.jsx';
@@ -592,7 +592,9 @@ export default function Trials({ onMenuClick }) {
       const obs = validateEfficacyData(safeJsonParse(activeTrial?.EfficacyDataJSON, []))[idx];
       setObsForm({ daa: obs.daa ?? '', date: obs.date || '', weedCover: obs.weedCover ?? '', notes: obs.notes || '', weedDetails: obs.weedDetails || [], weatherTemp: obs.weatherTemp || '', weatherHumidity: obs.weatherHumidity || '', weatherWind: obs.weatherWind || '', weatherRain: obs.weatherRain || '' });
     } else {
-      setObsForm({ daa: '', date: new Date().toISOString().split('T')[0], weedCover: '', notes: '', weedDetails: [], weatherTemp: '', weatherHumidity: '', weatherWind: '', weatherRain: '' });
+      const today = new Date().toISOString().split('T')[0];
+      const autoDaa = activeTrial?.Date ? calculateDAA(today, activeTrial.Date) : '';
+      setObsForm({ daa: autoDaa, date: today, weedCover: '', notes: '', weedDetails: [], weatherTemp: '', weatherHumidity: '', weatherWind: '', weatherRain: '' });
     }
     setCoverDetectResult(null);
     setEditingObsIdx(idx);
@@ -3614,11 +3616,44 @@ Exactly 2 sentences. Follow this structure:
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Days After App (DAA)</label>
-              <input type="number" required min="0" value={obsForm.daa} onChange={e => setObsForm({...obsForm, daa: e.target.value})} className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+              <input
+                type="number"
+                required
+                min="0"
+                value={obsForm.daa}
+                onChange={e => {
+                  const val = e.target.value;
+                  let newDate = obsForm.date;
+                  if (val !== '' && activeTrial?.Date) {
+                    const parsed = toDateKey(activeTrial.Date);
+                    if (parsed) {
+                      const [y, m, d] = parsed.split('-').map(Number);
+                      const baseDate = new Date(Date.UTC(y, m - 1, d));
+                      baseDate.setUTCDate(baseDate.getUTCDate() + parseInt(val, 10));
+                      const ry = baseDate.getUTCFullYear();
+                      const rm = String(baseDate.getUTCMonth() + 1).padStart(2, '0');
+                      const rd = String(baseDate.getUTCDate()).padStart(2, '0');
+                      newDate = `${ry}-${rm}-${rd}`;
+                    }
+                  }
+                  setObsForm({ ...obsForm, daa: val, date: newDate });
+                }}
+                className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Date</label>
-              <input type="date" required value={obsForm.date} onChange={e => setObsForm({...obsForm, date: e.target.value})} className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+              <input
+                type="date"
+                required
+                value={obsForm.date}
+                onChange={e => {
+                  const val = e.target.value;
+                  const computedDaa = activeTrial?.Date ? calculateDAA(val, activeTrial.Date) : obsForm.daa;
+                  setObsForm({ ...obsForm, date: val, daa: computedDaa });
+                }}
+                className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
             </div>
           </div>
 

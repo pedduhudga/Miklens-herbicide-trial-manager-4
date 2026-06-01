@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import TopBar from '../components/TopBar.jsx';
 import { useAppState } from '../hooks/useAppState.jsx';
-import { Database, Download, Upload, Archive, Activity, FileSpreadsheet, CheckCircle, AlertCircle, Wrench, Bot, Trash2, FileCode, Cloud, Import } from 'lucide-react';
+import { Database, Download, Upload, Archive, Activity, FileSpreadsheet, CheckCircle, AlertCircle, Wrench, Bot, Trash2, FileCode, Cloud, Import, RefreshCw } from 'lucide-react';
 import CloudBackup from '../components/CloudBackup.jsx';
 import { exportCSV, exportZIP, importCSV } from '../utils/exportUtils.js';
 import { updateTrial, updateProject, updateFormulation } from '../services/dataLayer.js'; // Adjust as needed
@@ -602,6 +602,66 @@ Provide a 2-sentence summary of expected efficacy based on typical performance p
     );
   };
 
+  // ── Recalculate Efficacy Ratings ──────────────────────────────────────────
+  const [isRecalculating, setIsRecalculating] = useState(false);
+
+  const handleRecalculateAllRatings = async () => {
+    if (isRecalculating) return;
+    setIsRecalculating(true);
+    const safeJsonParse = (str, fallback = []) => {
+      try { return JSON.parse(str) || fallback; } catch { return fallback; }
+    };
+    
+    try {
+      const currentTrials = state.trials || [];
+      const updatedTrials = [];
+      let updatedCount = 0;
+
+      for (const trial of currentTrials) {
+        const efficacyData = safeJsonParse(trial.EfficacyDataJSON, []);
+        if (efficacyData.length > 0) {
+          // Find latest observation by DAA
+          const latestObs = [...efficacyData].sort((a, b) => (parseFloat(b.daa) || 0) - (parseFloat(a.daa) || 0))[0];
+          const remainingCover = latestObs.weedCover || 0;
+          
+          let resultRating = 'Unrated';
+          if (remainingCover <= 10) {
+            resultRating = 'Excellent';
+          } else if (remainingCover <= 25) {
+            resultRating = 'Good';
+          } else if (remainingCover <= 50) {
+            resultRating = 'Fair';
+          } else {
+            resultRating = 'Poor';
+          }
+
+          if (trial.Result !== resultRating) {
+            const updatedTrial = { ...trial, Result: resultRating };
+            await updateTrial({ ID: trial.ID, Result: resultRating }, getAppState);
+            updatedTrials.push(updatedTrial);
+            updatedCount++;
+          } else {
+            updatedTrials.push(trial);
+          }
+        } else {
+          updatedTrials.push(trial);
+        }
+      }
+
+      if (updatedCount > 0) {
+        updateState({ trials: updatedTrials });
+        toast(`Successfully recalculated and updated ${updatedCount} trial ratings!`, 'success');
+      } else {
+        toast('All trials already have up-to-date ratings.', 'info');
+      }
+    } catch (e) {
+      console.error('Failed to recalculate ratings:', e);
+      toast('Failed to recalculate ratings: ' + e.message, 'error');
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
   // ── Clear All Data ────────────────────────────────────────────────────────
   const handleClearAllData = () => {
     if (!window.confirm('⚠️ This will permanently delete ALL local data including trials, formulations, projects, and ingredients.\n\nThis action CANNOT be undone.\n\nAre you absolutely sure?')) return;
@@ -956,6 +1016,27 @@ Provide a 2-sentence summary of expected efficacy based on typical performance p
               <p className="text-sm text-emerald-700 font-medium">Queue is empty — all data is synced.</p>
             </div>
           )}
+        </div>
+
+        {/* ── Recalculate Efficacy Ratings ── */}
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 space-y-4">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-emerald-600" /> Recalculate Efficacy Ratings
+          </h3>
+          <p className="text-xs text-slate-500">
+            Updates the overall trial control efficacy rating (Excellent, Good, Fair, Poor) for all legacy trials. This recalculates using the latest observation's weed cover percentage according to the new visual rules (e.g. 0-10% remaining cover = Excellent control).
+          </p>
+          <button
+            onClick={handleRecalculateAllRatings}
+            disabled={isRecalculating}
+            className="px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+          >
+            {isRecalculating ? (
+              <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Recalculating...</>
+            ) : (
+              'Recalculate All Ratings'
+            )}
+          </button>
         </div>
 
         {/* ── Clear All Data ── */}
