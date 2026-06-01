@@ -514,6 +514,217 @@ export default function DataManagement({ onMenuClick }) {
     });
   };
 
+  const handleOneClickRepairAll = async () => {
+    if (!window.confirm("⚠️ This will run a complete sequential data repair on ALL trials in your database. It will sync Dates, DAAs, Weed Species, %Cover, WCE%, Grid Covers, and Efficacy Ratings in one go.\n\nWould you like to proceed?")) return;
+
+    const trials = [...(state.trials || [])];
+    if (!trials.length) {
+      toast('No trials on record to repair', 'info');
+      return;
+    }
+    
+    setRepairProgress('');
+    setScanSummary('');
+    setRepairState({
+      isRunning: true,
+      taskName: 'Complete Legacy Data Repair (One-Click)',
+      progress: 0,
+      total: trials.length,
+      currentTrialName: ''
+    });
+
+    const round1 = (n) => Math.round(n * 10) / 10;
+    const isValidCell = (cellId, gridSize) => {
+      const parts = String(cellId || '').split(',');
+      if (parts.length !== 2) return false;
+      const r = parseInt(parts[0], 10);
+      const c = parseInt(parts[1], 10);
+      return isFinite(r) && isFinite(c) && r >= 0 && c >= 0 && r < gridSize && c < gridSize;
+    };
+    
+    let updatedCount = 0;
+    const currentTrials = [...trials];
+    
+    for (let i = 0; i < currentTrials.length; i++) {
+      const t = currentTrials[i];
+      setRepairState(prev => ({
+        ...prev,
+        progress: i + 1,
+        currentTrialName: t.FormulationName || `Trial ${t.ID.slice(-6)}`
+      }));
+      
+      await new Promise(r => setTimeout(r, 50));
+      
+      let changed = false;
+      let eff = safeJsonParse(t.EfficacyDataJSON, []);
+      let photos = safeJsonParse(t.PhotoURLs, []);
+      
+      // 1. Sync Dates with Photos
+      if (eff.length > 0 && photos.length > 0) {
+        const sortedEff = [...eff].sort((a, b) => (parseFloat(a.daa) || 0) - (parseFloat(b.daa) || 0));
+        const sortedPhotos = [...photos].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+        
+        eff = eff.map(obs => {
+          const idx = sortedEff.findIndex(o => o.daa === obs.daa && o.date === obs.date);
+          if (idx >= 0 && sortedPhotos[idx]) {
+            const correspondingPhoto = sortedPhotos[idx];
+            const newDate = correspondingPhoto.date;
+            if (newDate && (obs.date !== newDate)) {
+              changed = true;
+              return { ...obs, date: newDate };
+            }
+          }
+          return obs;
+        });
+      }
+      
+      // 2. Recalculate DAA based on trial date
+      if (t.Date && eff.length > 0) {
+        eff = eff.map(obs => {
+          if (!obs.date) return obs;
+          const computedDaa = calculateDAA(obs.date, t.Date);
+          if (obs.daa !== computedDaa) {
+            changed = true;
+            return { ...obs, daa: computedDaa };
+          }
+          return obs;
+        });
+      }
+      
+      // 3. Auto-Fix Weed Linking (text DAA & missing species details)
+      if (eff.length > 0) {
+        eff = eff.map(obs => {
+          const newO = { ...obs };
+          if (typeof newO.daa === 'string') { newO.daa = parseFloat(newO.daa) || 0; changed = true; }
+          if (!newO.weedDetails || newO.weedDetails.length === 0) {
+            newO.weedDetails = [{ species: t.WeedSpecies || 'Unknown', cover: newO.weedCover ?? 0 }];
+            changed = true;
+          }
+          return newO;
+        });
+      }
+      
+      // 4. Repair Species Tracking (trial WeedSpecies property)
+      let weedSpecies = t.WeedSpecies;
+      if (!weedSpecies && eff.length > 0) {
+        const species = new Set();
+        eff.forEach(o => (o.weedDetails || []).forEach(w => { if (w.species) species.add(w.species); }));
+        if (species.size > 0) {
+          weedSpecies = [...species].join(', ');
+          changed = true;
+        }
+      }
+      
+      // 5. Rebuild %Cover (All observations)
+      if (eff.length > 0) {
+        eff = eff.map(obs => {
+          if (obs.weedDetails && obs.weedDetails.length > 0) {
+            const total = obs.weedDetails.reduce((s, w) => s + (parseFloat(w.cover) || 0), 0);
+            const coverVal = parseFloat(total.toFixed(2));
+            if (obs.weedCover !== coverVal) {
+              changed = true;
+              return { ...obs, weedCover: coverVal };
+            }
+          }
+          return obs;
+        });
+      }
+      
+      // 6. Recalculate Grid Covers
+      if (eff.length > 0) {
+        eff = eff.map(obs => {
+          const mode = String(obs?.weedCoverMode || '').toLowerCase();
+          const cells = Array.isArray(obs?.weedCoverGridCells) ? obs.weedCoverGridCells : null;
+          if (mode !== 'grid-manual' || !cells || cells.length === 0) return obs;
+          
+          const gridSize = parseInt(obs?.weedCoverGridSize, 10) || parseInt(obs?.gridSize, 10) || 10;
+          const totalCells = gridSize * gridSize;
+          if (!totalCells) return obs;
+          
+          const validCells = cells.filter(c => isValidCell(c, gridSize));
+          const pct = round1((validCells.length / totalCells) * 100);
+          
+          const newObs = { ...obs };
+          let obsChanged = false;
+          if (newObs.weedCover !== pct) { newObs.weedCover = pct; obsChanged = true; }
+          if (newObs.weedCoverGrid !== pct) { newObs.weedCoverGrid = pct; obsChanged = true; }
+          if (newObs.weedCoverGridSize !== gridSize) { newObs.weedCoverGridSize = gridSize; obsChanged = true; }
+          if (validCells.length !== cells.length) { newObs.weedCoverGridCells = validCells; obsChanged = true; }
+          if (obsChanged) changed = true;
+          return newObs;
+        });
+      }
+      
+      // 7. Recalculate Efficacy (WCE%)
+      if (eff.length > 0) {
+        const sortedEff = [...eff].sort((a, b) => (a.daa ?? 0) - (b.daa ?? 0));
+        const baseline = sortedEff.find(o => (o.daa ?? 0) === 0) || sortedEff[0];
+        const baselineCover = baseline ? (baseline.weedCover ?? baseline.cover ?? null) : null;
+        
+        if (baselineCover !== null && baselineCover > 0) {
+          eff = eff.map(obs => {
+            const daa = obs.daa ?? 0;
+            const weedCover = obs.weedCover ?? obs.cover ?? null;
+            let computedWce = null;
+            if (daa === 0) {
+              computedWce = 0;
+            } else if (weedCover !== null) {
+              computedWce = ((baselineCover - weedCover) / baselineCover) * 100;
+              computedWce = Math.max(-100, Math.min(200, Math.round(computedWce * 10) / 10));
+            }
+            if (computedWce !== null && (obs.wce !== computedWce || obs.controlPct !== computedWce)) {
+              changed = true;
+              return { ...obs, wce: computedWce, controlPct: computedWce };
+            }
+            return obs;
+          });
+        }
+      }
+      
+      // 8. Recalculate Rating Result (Qualitative Efficacy Rating)
+      let resultRating = t.Result || 'Unrated';
+      if (eff.length > 0) {
+        const latestObs = [...eff].sort((a, b) => (parseFloat(b.daa) || 0) - (parseFloat(a.daa) || 0))[0];
+        const remainingCover = latestObs.weedCover || 0;
+        let newRating = 'Unrated';
+        if (remainingCover <= 10) {
+          newRating = 'Excellent';
+        } else if (remainingCover <= 25) {
+          newRating = 'Good';
+        } else if (remainingCover <= 50) {
+          newRating = 'Fair';
+        } else {
+          newRating = 'Poor';
+        }
+        if (resultRating !== newRating) {
+          resultRating = newRating;
+          changed = true;
+        }
+      }
+      
+      if (changed) {
+        const updatedTrial = {
+          ...t,
+          EfficacyDataJSON: JSON.stringify(eff),
+          WeedSpecies: weedSpecies,
+          Result: resultRating
+        };
+        currentTrials[i] = updatedTrial;
+        updatedCount++;
+        try {
+          await updateTrial(updatedTrial, getAppState);
+        } catch (err) {
+          console.warn(`Failed to sync trial ${t.ID}:`, err);
+        }
+      }
+    }
+    
+    updateState({ trials: currentTrials });
+    setRepairState({ isRunning: false, taskName: '', progress: 0, total: 0, currentTrialName: '' });
+    setRepairProgress(`One-Click Complete Repair successfully finished! ${updatedCount} trial(s) fully repaired and synchronized to database.`);
+    toast(`One-Click Repair complete`, 'success');
+  };
+
   // ── AI Bulk Analysis ──────────────────────────────────────────────────────
   const startBulkAnalysis = () => {
     const needsAnalysis = (state.trials || []).filter(
@@ -900,6 +1111,10 @@ Provide a 2-sentence summary of expected efficacy based on typical performance p
             <button onClick={handleRecalculateAllDaa}
               className="bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-800 transition">
               Recalculate DAA (All Trials)
+            </button>
+            <button onClick={handleOneClickRepairAll}
+              className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:from-violet-700 hover:to-indigo-700 transition shadow-md">
+              One-Click Legacy Repair (Fix Everything)
             </button>
           </div>
           {repairState.isRunning && (
