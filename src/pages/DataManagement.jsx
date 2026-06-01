@@ -337,8 +337,52 @@ export default function DataManagement({ onMenuClick }) {
   };
 
   const handleRecalcGridCovers = () => {
-    setRepairProgress('Grid cover recalculation requires the full AI photo analysis pipeline (Google Apps Script environment).');
-    toast('Not available in standalone mode', 'info');
+    const round1 = (n) => Math.round(n * 10) / 10;
+    const isValidCell = (cellId, gridSize) => {
+      const parts = String(cellId || '').split(',');
+      if (parts.length !== 2) return false;
+      const r = parseInt(parts[0], 10);
+      const c = parseInt(parts[1], 10);
+      return isFinite(r) && isFinite(c) && r >= 0 && c >= 0 && r < gridSize && c < gridSize;
+    };
+
+    runAsynchronousRepair('Recalculate Grid Covers', (t) => {
+      const eff = safeJsonParse(t.EfficacyDataJSON, []);
+      if (!eff.length) return { updatedTrial: t, isChanged: false };
+      
+      let changed = false;
+      const newEff = eff.map(obs => {
+        const mode = String(obs?.weedCoverMode || '').toLowerCase();
+        const cells = Array.isArray(obs?.weedCoverGridCells) ? obs.weedCoverGridCells : null;
+        if (mode !== 'grid-manual' || !cells || cells.length === 0) {
+          return obs;
+        }
+        const gridSize = parseInt(obs?.weedCoverGridSize, 10) || parseInt(obs?.gridSize, 10) || 10;
+        const totalCells = gridSize * gridSize;
+        if (!totalCells) return obs;
+
+        const validCells = cells.filter(c => isValidCell(c, gridSize));
+        const pct = round1((validCells.length / totalCells) * 100);
+
+        const newObs = { ...obs };
+        let obsChanged = false;
+        if (newObs.weedCover !== pct) { newObs.weedCover = pct; obsChanged = true; }
+        if (newObs.weedCoverGrid !== pct) { newObs.weedCoverGrid = pct; obsChanged = true; }
+        if (newObs.weedCoverGridSize !== gridSize) { newObs.weedCoverGridSize = gridSize; obsChanged = true; }
+        if (validCells.length !== cells.length) { newObs.weedCoverGridCells = validCells; obsChanged = true; }
+        
+        if (obsChanged) {
+          changed = true;
+          return newObs;
+        }
+        return obs;
+      });
+
+      return {
+        updatedTrial: changed ? { ...t, EfficacyDataJSON: JSON.stringify(newEff) } : t,
+        isChanged: changed
+      };
+    });
   };
 
   const handleRebuildCoverAll = () => {
@@ -439,6 +483,30 @@ export default function DataManagement({ onMenuClick }) {
         return obs;
       });
       
+      return {
+        updatedTrial: changed ? { ...t, EfficacyDataJSON: JSON.stringify(newEff) } : t,
+        isChanged: changed
+      };
+    });
+  };
+
+  const handleRecalculateAllDaa = () => {
+    runAsynchronousRepair('Recalculate All DAA', (t) => {
+      if (!t.Date) return { updatedTrial: t, isChanged: false };
+      const eff = safeJsonParse(t.EfficacyDataJSON, []);
+      if (!eff.length) return { updatedTrial: t, isChanged: false };
+
+      let changed = false;
+      const newEff = eff.map(obs => {
+        if (!obs.date) return obs;
+        const computedDaa = calculateDAA(obs.date, t.Date);
+        if (obs.daa !== computedDaa) {
+          changed = true;
+          return { ...obs, daa: computedDaa };
+        }
+        return obs;
+      });
+
       return {
         updatedTrial: changed ? { ...t, EfficacyDataJSON: JSON.stringify(newEff) } : t,
         isChanged: changed
@@ -828,6 +896,10 @@ Provide a 2-sentence summary of expected efficacy based on typical performance p
             <button onClick={handleSyncObsDatesWithPhotos}
               className="bg-sky-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-sky-700 transition">
               Sync Dates with Photos
+            </button>
+            <button onClick={handleRecalculateAllDaa}
+              className="bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-800 transition">
+              Recalculate DAA (All Trials)
             </button>
           </div>
           {repairState.isRunning && (
