@@ -1083,10 +1083,15 @@ Provide a 2-sentence summary of expected efficacy based on typical performance p
               }),
             };
 
-            // Update state
+            // Update state & persist to DB/Sheets
             updateState({
               trials: (state.trials || []).map(t => t.ID === trial.ID ? updatedTrial : t),
             });
+            try {
+              await updateTrial(updatedTrial, getAppState);
+            } catch (dbErr) {
+              console.warn(`Failed to save bulk analysis for trial ${trial.ID}:`, dbErr);
+            }
 
             setBulkAnalysisState(prev => ({ ...prev, successCount: prev.successCount + 1 }));
           } catch (apiError) {

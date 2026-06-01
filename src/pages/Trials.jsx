@@ -1925,6 +1925,7 @@ Exactly 2 sentences. Follow this structure:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
       });
+      let text = '';
       if (!res.ok) {
         // Fallback to gemini-2.5-flash-lite if primary fails
         const fallbackRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`, {
@@ -1933,14 +1934,14 @@ Exactly 2 sentences. Follow this structure:
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
         const fallbackData = await fallbackRes.json();
-        const fallbackText = fallbackData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        if (!fallbackText) throw new Error('Empty AI response from fallback model');
-        setAiSummary(fallbackText);
-        return;
+        text = fallbackData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!text) throw new Error('Empty AI response from fallback model');
+      } else {
+        const data = await res.json();
+        text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!text) throw new Error('Empty AI response');
       }
-      const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      if (!text) throw new Error('Empty AI response');
+      
       setAiSummary(text);
       // ── Persist to Firebase so it survives refresh ──
       const obsCount = efficacy.length;
@@ -1949,7 +1950,11 @@ Exactly 2 sentences. Follow this structure:
       const updatedTrial = { ...detailTrial, AISummariesJSON: JSON.stringify(updatedSummaries) };
       updateState({ trials: trials.map(t => t.ID === updatedTrial.ID ? updatedTrial : t) });
       setActiveTrial(updatedTrial);
-      try { await updateTrial({ ID: updatedTrial.ID, AISummariesJSON: updatedTrial.AISummariesJSON }, getAppState); } catch(e) {}
+      try { 
+        await updateTrial({ ID: updatedTrial.ID, AISummariesJSON: updatedTrial.AISummariesJSON }, getAppState); 
+      } catch(e) {
+        console.error('Failed to save AI summary:', e);
+      }
       window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: 'AI narrative saved!', type: 'success' } }));
     } catch (err) {
       window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: `AI error: ${err.message}`, type: 'error' } }));
