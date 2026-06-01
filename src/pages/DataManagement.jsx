@@ -12,30 +12,77 @@ export default function DataManagement({ onMenuClick }) {
   const importRef = useRef(null);
   const csvImportRef = useRef(null);
   const [csvImportEntity, setCsvImportEntity] = useState('');
-  const [repairProgress, setRepairProgress] = useState('');
+  const [localRepairProgress, setLocalRepairProgress] = useState(window.globalRepairProgress || '');
   const [showCloudBackup, setShowCloudBackup] = useState(false);
-  const [scanSummary, setScanSummary] = useState('');
-  const [bulkAiProgress, setBulkAiProgress] = useState('');
+  const [localScanSummary, setLocalScanSummary] = useState(window.globalScanSummary || '');
+  const [localBulkAiProgress, setLocalBulkAiProgress] = useState(window.globalBulkAiProgress || '');
+
+  // Initialize global states if not existing
+  if (!window.globalRepairState) {
+    window.globalRepairState = { isRunning: false, taskName: '', progress: 0, total: 0, currentTrialName: '' };
+  }
+  if (!window.globalBulkAnalysisState) {
+    window.globalBulkAnalysisState = { isRunning: false, isPaused: false, lastProcessedIndex: -1, trialsToProcess: [], totalToProcess: 0, successCount: 0, errorCount: 0, currentTrialName: '' };
+  }
 
   // ── Enhanced Bulk AI Analysis State ───────────────────────────────────────
-  const [bulkAnalysisState, setBulkAnalysisState] = useState({
-    isRunning: false,
-    isPaused: false,
-    lastProcessedIndex: -1,
-    trialsToProcess: [],
-    totalToProcess: 0,
-    successCount: 0,
-    errorCount: 0,
-    currentTrialName: '',
-  });
+  const [localBulkAnalysisState, setLocalBulkAnalysisState] = useState(window.globalBulkAnalysisState);
 
-  const [repairState, setRepairState] = useState({
-    isRunning: false,
-    taskName: '',
-    progress: 0,
-    total: 0,
-    currentTrialName: ''
-  });
+  const [localRepairState, setLocalRepairState] = useState(window.globalRepairState);
+
+  // Track mounted status to avoid setState on unmounted component
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  // Wrapper functions matching the original state setter names
+  const setRepairState = (updater) => {
+    const next = typeof updater === 'function' ? updater(window.globalRepairState) : updater;
+    window.globalRepairState = { ...window.globalRepairState, ...next };
+    if (isMounted.current) {
+      setLocalRepairState(window.globalRepairState);
+    }
+  };
+
+  const setRepairProgress = (val) => {
+    window.globalRepairProgress = val;
+    if (isMounted.current) {
+      setLocalRepairProgress(val);
+    }
+  };
+
+  const setScanSummary = (val) => {
+    window.globalScanSummary = val;
+    if (isMounted.current) {
+      setLocalScanSummary(val);
+    }
+  };
+
+  const setBulkAiProgress = (val) => {
+    window.globalBulkAiProgress = val;
+    if (isMounted.current) {
+      setLocalBulkAiProgress(val);
+    }
+  };
+
+  const setBulkAnalysisState = (updater) => {
+    const next = typeof updater === 'function' ? updater(window.globalBulkAnalysisState) : updater;
+    window.globalBulkAnalysisState = { ...window.globalBulkAnalysisState, ...next };
+    if (isMounted.current) {
+      setLocalBulkAnalysisState(window.globalBulkAnalysisState);
+    }
+  };
+
+  // Map original state variables to local state variables for rendering
+  const repairState = localRepairState;
+  const repairProgress = localRepairProgress;
+  const scanSummary = localScanSummary;
+  const bulkAiProgress = localBulkAiProgress;
+  const bulkAnalysisState = localBulkAnalysisState;
 
   const toast = (msg, type = 'success') =>
     window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg, type } }));
