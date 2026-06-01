@@ -190,6 +190,11 @@ export default function Trials({ onMenuClick }) {
     }
   }, [state.trials, activeTrial]);
 
+  // Sync local selectedForBulk to global selectedTrials
+  useEffect(() => {
+    updateState({ selectedTrials: Array.from(selectedForBulk) });
+  }, [selectedForBulk, updateState]);
+
   // ── DERIVED DATA ───────────────────────────────────────────────────
   const trials = state.trials || [];
   const formulations = state.formulations || [];
