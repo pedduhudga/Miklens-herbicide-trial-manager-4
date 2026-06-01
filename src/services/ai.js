@@ -5294,8 +5294,8 @@ Write a 3-paragraph Narrative covering Methodology, Results and Conclusions. Foc
                         const existingPhotos = isUpdate ? state.croppedPhotosData.filter(p => p.isExisting) : [];
                         const projectId = formData.projectId || formData.projectID || formData.ProjectID;
                         const project = state.projects.find(p => p.ID == projectId);
-                        const projectName = project ? project.Name : 'Ungrouped Projects';
-                        const trialNameWithDate = `${formulation ? formulation.Name : 'Unknown Formulation'} (${formData.date || new Date().toISOString().split('T')[0]})`.trim();
+                        const dosageSuffix = formData.dosage || formData.Dosage ? ` (${formData.dosage || formData.Dosage})` : '';
+                        const trialNameWithDate = `${formulation ? formulation.Name : 'Unknown Formulation'}${dosageSuffix} (${formData.date || new Date().toISOString().split('T')[0]})`.trim();
                         const folderPath = [projectName, trialNameWithDate];
 
                         console.log('Uploading photos with path:', folderPath);
@@ -19836,7 +19836,8 @@ Total Trials: ${(state.trials || []).length} | Total Projects: ${(state.projects
                         if (trial) {
                             const project = state.projects.find(p => p.ID === trial.ProjectID);
                             const projectName = project ? project.Name : 'Ungrouped Projects';
-                            const trialNameWithDate = `${trial.FormulationName || 'Unknown Formulation'} (${trial.Date ? new Date(trial.Date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]})`.trim();
+                            const dosageSuffix = trial.Dosage ? ` (${trial.Dosage})` : '';
+                            const trialNameWithDate = `${trial.FormulationName || 'Unknown Formulation'}${dosageSuffix} (${trial.Date ? new Date(trial.Date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]})`.trim();
                             folderPath = [projectName, trialNameWithDate];
                         }
 

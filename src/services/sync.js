@@ -148,7 +148,8 @@ export async function processSyncQueue(getAppState, updateAppState, showToast, r
                         if (trial) {
                             const project = state.projects.find(p => p.ID === trial.ProjectID);
                             const projectName = project ? project.Name : 'Ungrouped Projects';
-                            const trialNameWithDate = `${trial.FormulationName || 'Unknown Formulation'} (${trial.Date ? new Date(trial.Date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]})`.trim();
+                            const dosageSuffix = trial.Dosage ? ` (${trial.Dosage})` : '';
+                            const trialNameWithDate = `${trial.FormulationName || 'Unknown Formulation'}${dosageSuffix} (${trial.Date ? new Date(trial.Date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]})`.trim();
                             folderPath = [projectName, trialNameWithDate];
                         }
 
@@ -219,6 +220,7 @@ export async function processSyncQueue(getAppState, updateAppState, showToast, r
                             }
 
                             if (isWeed) trial.WeedPhotosJSON = JSON.stringify(photos); else trial.PhotoURLs = JSON.stringify(photos);
+                            updateAppState({ trials: [...state.trials] });
 
                             // 3. PERSIST PHOTO LINK TO SHEET
                             const handshakeStart = Date.now();

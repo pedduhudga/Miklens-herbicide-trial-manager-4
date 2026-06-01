@@ -669,7 +669,9 @@ function getTrialFolderPath(ss, trialPayload) {
     const rawDate = trialPayload.Date || trialPayload.date || new Date();
     const dateObj = rawDate instanceof Date ? rawDate : new Date(rawDate);
     const dateStr = isNaN(dateObj.getTime()) ? new Date().toISOString().split('T')[0] : dateObj.toISOString().split('T')[0];
-    const trialFolderName = (formulationName + ' (' + dateStr + ')').trim();
+    const dosage = trialPayload.Dosage || trialPayload.dosage || '';
+    const dosageSuffix = dosage ? ' (' + dosage + ')' : '';
+    const trialFolderName = (formulationName + dosageSuffix + ' (' + dateStr + ')').trim();
 
     return [projectName, trialFolderName];
 }

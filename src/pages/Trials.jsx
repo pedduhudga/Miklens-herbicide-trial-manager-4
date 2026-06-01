@@ -715,7 +715,8 @@ export default function Trials({ onMenuClick }) {
       ? (state.projects || []).find(p => p.ID === targetTrial.ProjectID)
       : null;
     const projectName = project ? project.Name : 'Ungrouped Projects';
-    const trialNameWithDate = `${targetTrial.FormulationName || 'Unknown Formulation'} (${targetTrial.Date ? targetTrial.Date.split('T')[0] : photoDate})`.trim();
+    const dosageSuffix = targetTrial.Dosage ? ` (${targetTrial.Dosage})` : '';
+    const trialNameWithDate = `${targetTrial.FormulationName || 'Unknown Formulation'}${dosageSuffix} (${targetTrial.Date ? targetTrial.Date.split('T')[0] : photoDate})`.trim();
     const folderPath = [projectName, trialNameWithDate];
 
     // Optimistically add a placeholder with tempId so the photo appears immediately
@@ -748,6 +749,21 @@ export default function Trials({ onMenuClick }) {
       window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: 'App is offline. Photo queued for sync.', type: 'info' } }));
       return;
     }
+
+    // ONLINE PATH: Temporarily show in the Sync Queue UI as uploading
+    const onlineSyncItem = {
+      id: `sync_${tempId}`,
+      action: `Upload Photo for ${targetTrial.FormulationName || 'Trial'}${dosageSuffix}`,
+      status: 'uploading',
+      trialId: targetTrial.ID,
+      timestamp: Date.now(),
+      photo: {
+        tempId: tempId,
+        fileName: fileName,
+        label: photoEntry.label
+      }
+    };
+    updateState({ syncQueue: [...getAppState().syncQueue, onlineSyncItem] });
 
     window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: `Uploading to Drive (${projectName} / ${trialNameWithDate})...`, type: 'info' } }));
 
@@ -871,6 +887,8 @@ export default function Trials({ onMenuClick }) {
       }
     } catch (e) {
       window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: 'Failed to save photo', type: 'error' } }));
+    } finally {
+      updateState({ syncQueue: getAppState().syncQueue.filter(item => item.id !== `sync_${tempId}`) });
     }
   };
 
