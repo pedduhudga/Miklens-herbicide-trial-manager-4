@@ -725,6 +725,205 @@ export default function DataManagement({ onMenuClick }) {
     toast(`One-Click Repair complete`, 'success');
   };
 
+  const handleForceAiReanalysisAll = async () => {
+    const geminiKey = state.settings?.geminiApiKey || (state.settings?.geminiApiKeys || [])[0];
+    if (!geminiKey) {
+      toast('No Gemini API key configured. Please add one in Settings.', 'error');
+      return;
+    }
+    
+    if (!window.confirm("⚠️ This will sequentially re-analyze all photos in ALL trials using Gemini AI to correct the weed cover estimates. This will consume a lot of Gemini API key credits. Do you want to proceed?")) return;
+
+    const trials = [...(state.trials || [])];
+    if (!trials.length) {
+      toast('No trials on record to analyze', 'info');
+      return;
+    }
+
+    setRepairProgress('');
+    setScanSummary('');
+    setRepairState({
+      isRunning: true,
+      taskName: 'Force AI Re-analysis of All Photos',
+      progress: 0,
+      total: trials.length,
+      currentTrialName: ''
+    });
+
+    let updatedCount = 0;
+    const currentTrials = [...trials];
+
+    for (let i = 0; i < currentTrials.length; i++) {
+      const trial = currentTrials[i];
+      setRepairState(prev => ({
+        ...prev,
+        progress: i + 1,
+        currentTrialName: trial.FormulationName || `Trial ${trial.ID.slice(-6)}`
+      }));
+
+      const photos = safeJsonParse(trial.PhotoURLs, []);
+      if (photos.length === 0) continue;
+
+      let efficacyData = safeJsonParse(trial.EfficacyDataJSON, []);
+      let trialChanged = false;
+
+      for (const photo of photos) {
+        const photoUrl = photo.url || photo.fileData;
+        if (!photoUrl) continue;
+
+        // Extract Drive file ID if this is a Google Drive URL
+        const driveMatch = typeof photoUrl === 'string' && photoUrl.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=download&)?id=|thumbnail\?(?:[^&]*&)?id=)([a-zA-Z0-9_-]+)/);
+        const driveFileId = driveMatch ? driveMatch[1] : null;
+        let fileDataPayload = null;
+
+        if (driveFileId) {
+          fileDataPayload = {
+            fileData: {
+              mimeType: 'image/jpeg',
+              fileUri: `https://drive.google.com/uc?export=download&id=${driveFileId}`
+            }
+          };
+        } else if (photoUrl.startsWith('data:')) {
+          const parts = photoUrl.split(',');
+          const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+          const base64 = parts[1];
+          fileDataPayload = {
+            inlineData: {
+              mimeType: mime,
+              data: base64
+            }
+          };
+        }
+
+        if (!fileDataPayload) continue;
+
+        // Calculate DAA
+        const photoDate = photo.date || trial.Date || new Date().toISOString().split('T')[0];
+        const trialDate = trial.Date || photoDate;
+        const daa = Math.max(0, Math.round((new Date(photoDate) - new Date(trialDate)) / (1000 * 60 * 60 * 24)));
+
+        const promptText = `Analyze this herbicide trial photo for weed control efficacy.
+Formulation applied: ${trial.FormulationName || 'Unknown'}
+Target Weed: ${trial.WeedSpecies || 'Unknown'}
+Days After Application (DAA): ${daa}
+
+CRITICAL RULES:
+1. Ignore dead weeds (brown, bleached white, or yellow/chlorotic). Only count healthy, living green weeds in the cover percentage.
+2. Estimate the living weed cover percentage (0-100%).
+3. Identify the main weed species and estimate their individual living cover.
+4. Provide a brief agronomical efficacy assessment (1 sentence).
+
+Return ONLY a raw JSON object with this schema:
+{
+  "totalWeedCover": number,
+  "weeds": [
+    { "species": "species name", "cover": number, "status": "Vegetative/Top-kill/Regrowth/Unaffected", "growthStage": "Seedling/Vegetative/Flowering/Mature", "notes": "notes" }
+  ],
+  "efficacyAssessment": "assessment sentence"
+}`;
+
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [
+                    { text: promptText },
+                    fileDataPayload
+                  ]
+                }],
+                generationConfig: {
+                  responseMimeType: "application/json"
+                }
+              }),
+            }
+          );
+
+          if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
+          const resJson = await response.json();
+          const jsonText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+          const aiData = JSON.parse(jsonText.replace(/```json/g, '').replace(/```/g, '').trim());
+
+          const normalizedWeeds = (aiData.weeds || []).map(w => ({
+            species: w.species || 'Unknown',
+            cover: typeof w.cover === 'number' ? w.cover : parseFloat(w.cover || 0),
+            status: String(w.status || '').trim(),
+            growthStage: String(w.growthStage || '').trim(),
+            notes: String(w.notes || '').trim()
+          }));
+
+          const totalWeedCover = typeof aiData.totalWeedCover === 'number'
+            ? aiData.totalWeedCover
+            : normalizedWeeds.reduce((sum, w) => sum + (w.cover || 0), 0);
+
+          const newObs = {
+            date: photoDate,
+            daa: Number(daa),
+            weedCover: totalWeedCover,
+            weedDetails: normalizedWeeds.length > 0 ? normalizedWeeds : [{ species: 'No weeds detected', cover: 0, status: '', notes: aiData.notes || 'AI-analyzed' }],
+            notes: aiData.efficacyAssessment || `AI-analyzed on ${new Date().toLocaleDateString()}`,
+            aiConfidence: 'HIGH',
+            aiEfficacyAssessment: aiData.efficacyAssessment || '',
+            status: 'Analyzed',
+            source: 'AI',
+            photoUrl: photoUrl
+          };
+
+          // Find index of existing observation for this photo or DAA
+          const existingIdx = efficacyData.findIndex(o => o.photoUrl === photoUrl || o.daa === Number(daa));
+          if (existingIdx >= 0) {
+            efficacyData[existingIdx] = newObs;
+          } else {
+            efficacyData.push(newObs);
+          }
+          trialChanged = true;
+        } catch (e) {
+          console.error(`AI analysis failed for photo in trial ${trial.ID}:`, e);
+        }
+
+        // Small delay to prevent rate limits
+        await new Promise(r => setTimeout(r, 1200));
+      }
+
+      if (trialChanged) {
+        efficacyData.sort((a, b) => a.daa - b.daa);
+        
+        // Recalculate rating Result
+        let resultRating = trial.Result || 'Unrated';
+        if (efficacyData.length > 0) {
+          const latestObs = [...efficacyData].sort((a, b) => (parseFloat(b.daa) || 0) - (parseFloat(a.daa) || 0))[0];
+          const remainingCover = latestObs.weedCover || 0;
+          if (remainingCover <= 10) resultRating = 'Excellent';
+          else if (remainingCover <= 25) resultRating = 'Good';
+          else if (remainingCover <= 50) resultRating = 'Fair';
+          else resultRating = 'Poor';
+        }
+
+        const updatedTrial = {
+          ...trial,
+          EfficacyDataJSON: JSON.stringify(efficacyData),
+          Result: resultRating
+        };
+
+        currentTrials[i] = updatedTrial;
+        updatedCount++;
+        try {
+          await updateTrial(updatedTrial, getAppState);
+        } catch (err) {
+          console.warn(`Failed to sync trial ${trial.ID}:`, err);
+        }
+      }
+    }
+
+    updateState({ trials: currentTrials });
+    setRepairState({ isRunning: false, taskName: '', progress: 0, total: 0, currentTrialName: '' });
+    setRepairProgress(`Force AI Re-analysis finished! ${updatedCount} trial(s) successfully re-analyzed with Gemini AI.`);
+    toast(`Force AI Re-analysis complete`, 'success');
+  };
+
   // ── AI Bulk Analysis ──────────────────────────────────────────────────────
   const startBulkAnalysis = () => {
     const needsAnalysis = (state.trials || []).filter(
@@ -1115,6 +1314,10 @@ Provide a 2-sentence summary of expected efficacy based on typical performance p
             <button onClick={handleOneClickRepairAll}
               className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:from-violet-700 hover:to-indigo-700 transition shadow-md">
               One-Click Legacy Repair (Fix Everything)
+            </button>
+            <button onClick={handleForceAiReanalysisAll}
+              className="bg-gradient-to-r from-rose-500 to-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:from-rose-600 hover:to-red-700 transition shadow-md">
+              Force AI Re-analysis of Photos
             </button>
           </div>
           {repairState.isRunning && (
