@@ -887,7 +887,7 @@ export default function Trials({ onMenuClick }) {
       });
 
       if (result.success) {
-        await createObservationFromAI(targetTrial, daa, result.data, photoDate);
+        await createObservationFromAI(targetTrial, daa, result.data, photoDate, driveUrl || dataUrl);
         window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: `AI complete! Logged ${result.data.weeds?.length || 0} weed species at DAA ${daa}`, type: 'success' } }));
         // Auto-run cover detection in background
         detectWeedCoverAI(dataUrl).then(coverResult => {
@@ -961,7 +961,7 @@ export default function Trials({ onMenuClick }) {
   };
 
   // ── AI PHOTO ANALYSIS ─────────────────────────────────────────────
-  const createObservationFromAI = async (trial, daa, aiData, obsDate = null) => {
+  const createObservationFromAI = async (trial, daa, aiData, obsDate = null, photoUrl = null) => {
     const efficacyData = validateEfficacyData(safeJsonParse(trial.EfficacyDataJSON, []));
 
     // Normalize weed data with enhanced fields
@@ -993,7 +993,8 @@ export default function Trials({ onMenuClick }) {
       aiEfficacyAssessment: aiData.efficacyAssessment || '',
       competitionLevel: aiData.competitionLevel || '',
       status: 'Analyzed',
-      source: 'AI'
+      source: 'AI',
+      photoUrl: photoUrl || ''
     };
 
     // Check if observation for this DAA already exists - update if so
@@ -2057,6 +2058,10 @@ Exactly 2 sentences. Follow this structure:
     const oldDate = oldPhoto?.date;
     const newDate = photoEditModal.date;
 
+    // Find sequence rank of this photo in chronological order before updating it
+    const sortedOriginalPhotos = [...photos].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+    const rank = sortedOriginalPhotos.indexOf(oldPhoto);
+
     photos[photoEditModal.idx] = { ...oldPhoto, label: photoEditModal.label, date: newDate };
 
     const efficacyData = validateEfficacyData(safeJsonParse(activeTrial.EfficacyDataJSON, []));
@@ -2066,15 +2071,33 @@ Exactly 2 sentences. Follow this structure:
       const oldDaa = activeTrial.Date ? calculateDAA(oldDate, activeTrial.Date) : null;
       const newDaa = activeTrial.Date ? calculateDAA(newDate, activeTrial.Date) : null;
 
-      efficacyData.forEach(obs => {
-        if (obs.date === oldDate || (oldDaa !== null && obs.daa === oldDaa)) {
-          obs.date = newDate;
-          if (newDaa !== null) {
-            obs.daa = newDaa;
+      // 1. Try matching by photoUrl
+      let matched = false;
+      const photoUrlToMatch = oldPhoto?.url || oldPhoto?.fileData;
+      if (photoUrlToMatch) {
+        efficacyData.forEach(obs => {
+          if (obs.photoUrl === photoUrlToMatch) {
+            obs.date = newDate;
+            if (newDaa !== null) obs.daa = newDaa;
+            efficacyChanged = true;
+            matched = true;
           }
-          efficacyChanged = true;
+        });
+      }
+
+      // 2. Fallback to sequence rank (index of sorted list)
+      if (!matched && rank >= 0) {
+        const sortedEff = [...efficacyData].sort((a, b) => (parseFloat(a.daa) || 0) - (parseFloat(b.daa) || 0));
+        const obsToUpdate = sortedEff[rank];
+        if (obsToUpdate) {
+          const mainObs = efficacyData.find(o => o.daa === obsToUpdate.daa && o.date === obsToUpdate.date);
+          if (mainObs) {
+            mainObs.date = newDate;
+            if (newDaa !== null) mainObs.daa = newDaa;
+            efficacyChanged = true;
+          }
         }
-      });
+      }
     }
 
     if (efficacyChanged) {
