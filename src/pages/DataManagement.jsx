@@ -5,6 +5,7 @@ import { Database, Download, Upload, Archive, Activity, FileSpreadsheet, CheckCi
 import CloudBackup from '../components/CloudBackup.jsx';
 import { exportCSV, exportZIP, importCSV } from '../utils/exportUtils.js';
 import { updateTrial, updateProject, updateFormulation } from '../services/dataLayer.js'; // Adjust as needed
+import { calculateDAA } from '../utils/dateUtils.js';
 
 export default function DataManagement({ onMenuClick }) {
   const { state, updateState, getAppState } = useAppState();
@@ -410,6 +411,41 @@ export default function DataManagement({ onMenuClick }) {
     });
   };
 
+  const handleSyncObsDatesWithPhotos = () => {
+    runAsynchronousRepair('Sync Dates with Photos', (t) => {
+      const eff = safeJsonParse(t.EfficacyDataJSON, []);
+      const photos = safeJsonParse(t.PhotoURLs, []);
+      if (!eff.length || !photos.length) return { updatedTrial: t, isChanged: false };
+      
+      let changed = false;
+      const sortedEff = [...eff].sort((a, b) => (parseFloat(a.daa) || 0) - (parseFloat(b.daa) || 0));
+      const sortedPhotos = [...photos].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+      
+      const newEff = eff.map(obs => {
+        const idx = sortedEff.findIndex(o => o.daa === obs.daa && o.date === obs.date);
+        if (idx >= 0 && sortedPhotos[idx]) {
+          const correspondingPhoto = sortedPhotos[idx];
+          const newDate = correspondingPhoto.date;
+          if (newDate && (obs.date !== newDate)) {
+            const computedDaa = t.Date ? calculateDAA(newDate, t.Date) : obs.daa;
+            changed = true;
+            return {
+              ...obs,
+              date: newDate,
+              daa: computedDaa
+            };
+          }
+        }
+        return obs;
+      });
+      
+      return {
+        updatedTrial: changed ? { ...t, EfficacyDataJSON: JSON.stringify(newEff) } : t,
+        isChanged: changed
+      };
+    });
+  };
+
   // ── AI Bulk Analysis ──────────────────────────────────────────────────────
   const startBulkAnalysis = () => {
     const needsAnalysis = (state.trials || []).filter(
@@ -788,6 +824,10 @@ Provide a 2-sentence summary of expected efficacy based on typical performance p
             <button onClick={handleRecalculateWceAll}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
               Recalculate Efficacy (WCE%)
+            </button>
+            <button onClick={handleSyncObsDatesWithPhotos}
+              className="bg-sky-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-sky-700 transition">
+              Sync Dates with Photos
             </button>
           </div>
           {repairState.isRunning && (
