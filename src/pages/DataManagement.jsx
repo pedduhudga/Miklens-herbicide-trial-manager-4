@@ -726,7 +726,9 @@ export default function DataManagement({ onMenuClick }) {
   };
 
   const handleForceAiReanalysisAll = async () => {
-    const geminiKey = state.settings?.geminiApiKey || (state.settings?.geminiApiKeys || [])[0];
+    const apiKeys = state.settings?.apiKeys || state.settings?.geminiApiKeys || [];
+    const keyIndex = state.settings?.currentApiKeyIndex || 0;
+    const geminiKey = state.settings?.geminiApiKey || (apiKeys[keyIndex]?.key || apiKeys[keyIndex] || apiKeys[0]?.key || apiKeys[0]);
     if (!geminiKey) {
       toast('No Gemini API key configured. Please add one in Settings.', 'error');
       return;
@@ -967,7 +969,9 @@ Return ONLY a raw JSON object with this schema:
   };
 
   const processNextBatch = async (trials, startIndex) => {
-    const geminiKey = state.settings?.geminiApiKey || (state.settings?.geminiApiKeys || [])[0];
+    const apiKeys = state.settings?.apiKeys || state.settings?.geminiApiKeys || [];
+    const keyIndex = state.settings?.currentApiKeyIndex || 0;
+    const geminiKey = state.settings?.geminiApiKey || (apiKeys[keyIndex]?.key || apiKeys[keyIndex] || apiKeys[0]?.key || apiKeys[0]);
     if (!geminiKey) {
       toast('No Gemini API key configured. Please add one in Settings.', 'error');
       cancelBulkAnalysis();
