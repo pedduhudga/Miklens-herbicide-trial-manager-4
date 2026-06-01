@@ -180,6 +180,16 @@ export default function Trials({ onMenuClick }) {
     }
   }, [location.search, state.trials]);
 
+  // Keep activeTrial in sync with the global state (e.g. after sync updates)
+  useEffect(() => {
+    if (activeTrial) {
+      const latestTrial = state.trials?.find(t => t.ID === activeTrial.ID);
+      if (latestTrial && JSON.stringify(latestTrial) !== JSON.stringify(activeTrial)) {
+        setActiveTrial(latestTrial);
+      }
+    }
+  }, [state.trials, activeTrial]);
+
   // ── DERIVED DATA ───────────────────────────────────────────────────
   const trials = state.trials || [];
   const formulations = state.formulations || [];
