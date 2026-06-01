@@ -6948,8 +6948,8 @@ Write a 3-paragraph Narrative covering Methodology, Results and Conclusions. Foc
                     const prompt = `As an agricultural expert analyzing a photo from a herbicide trial, identify up to 2 dominant weed species and estimate their cover/status. Respond ONLY with a single minified JSON object in this exact format: {"weedDetails": [{"species": "...", "cover": NUMBER, "status": "Controlled|Burndown|Re-emerged|Resistant|Unaffected", "notes": "..."}]}.
                     - "weedDetails": An array of objects.
                     - "species": The scientific or common name of the weed.
-                    - "cover": Estimate the percentage of the ground covered by this specific weed species (0-100).
-                    - "status": The observed condition of the weed.
+                    - "cover": Estimate the percentage of the ground covered by *living, active, green* weeds (0-100%). DO NOT count weeds that are dead, brown/necrosed, yellow/chlorotic, or bleached white/albino as living cover. These are controlled weeds.
+                    - "status": The observed condition of the weed (Controlled/Burndown/Re-emerged/Resistant/Unaffected). Use "Controlled" or "Burndown" for dead, brown, yellow, or white/bleached weeds. Use "Unaffected" for green, healthy weeds.
                     - "notes": A brief qualitative observation.
                     - Prefer stable species naming across dates (e.g., Bermudagrass = Cynodon dactylon).
                     - Do NOT introduce a new species unless clearly visible.

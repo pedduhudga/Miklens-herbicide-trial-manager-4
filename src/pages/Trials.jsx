@@ -1003,17 +1003,26 @@ export default function Trials({ onMenuClick }) {
     }
     efficacyData.sort((a, b) => a.daa - b.daa);
 
-    // Calculate Result field
-    let resultValue = 0;
+    // Calculate Result rating based on remaining living weed cover
+    let resultRating = 'Unrated';
     if (efficacyData.length > 0) {
       const latestObs = [...efficacyData].sort((a, b) => (parseFloat(b.daa) || 0) - (parseFloat(a.daa) || 0))[0];
-      resultValue = latestObs.weedCover || 0;
+      const remainingCover = latestObs.weedCover || 0;
+      if (remainingCover <= 10) {
+        resultRating = 'Excellent';
+      } else if (remainingCover <= 25) {
+        resultRating = 'Good';
+      } else if (remainingCover <= 50) {
+        resultRating = 'Fair';
+      } else {
+        resultRating = 'Poor';
+      }
     }
 
     const updated = {
       ...trial,
       EfficacyDataJSON: JSON.stringify(efficacyData),
-      Result: String(resultValue.toFixed(2)),
+      Result: resultRating,
       WeedSpecies: normalizedWeeds.length > 0 ? normalizedWeeds.map(w => w.species).join(', ') : 'No weeds detected'
     };
 

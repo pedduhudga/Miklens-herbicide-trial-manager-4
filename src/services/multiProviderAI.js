@@ -165,19 +165,23 @@ ${historyNote}
 SCIENTIFIC ANALYSIS TASKS:
 1. **Weed Species Identification**: Identify all visible weed species. Write each species as "Common Name (Scientific name)" — Genus capitalised, species lowercase (e.g. "Barnyard Grass (Echinochloa crus-galli)", "Horse Purslane (Trianthema portulacastrum)").
 
-2. **Ground Cover Estimation**: For each species, estimate percentage ground cover (0-100%). Sum should approximate total weed cover.
+2. **Ground Cover Estimation (CRITICAL FOR EFFICACY)**:
+   - Estimate the percentage of the ground covered by *living, active, green* weeds (0-100%).
+   - **DO NOT** count weeds that are dead, brown, desiccated, yellow (chlorotic), or bleached white (carotenoid-bleached) as living cover. These are controlled weeds. Only estimate the remaining living green cover.
+   - The total weed cover should represent only the surviving green weed pressure.
 
-3. **Herbicidal Injury Response**: Classify the observed treatment response for each weed using ONLY these terms:
-   - "Unaffected" - No visible herbicidal injury
-   - "Slight Injury" - Minor leaf spotting or marginal necrosis
-   - "Moderate Injury" - Significant tissue damage, partial wilting
-   - "Severe Injury" - Extensive tissue damage, stunted growth
-   - "Dead/Desiccated" - Brown/dry, no green tissue remaining
-   - "Burndown" - Rapid wilting or browning (contact herbicide effect)
+3. **Herbicidal Injury Response & Symptoms**:
+   - Classify the observed treatment response for each weed using:
+     - "Unaffected" - Weeds are healthy, growing, and vibrant green.
+     - "Slight Injury" - Minor yellowing (chlorosis) or bleaching/whitening at leaf tips.
+     - "Moderate Injury" - Moderate yellowing (chlorosis) or bleaching (whitening), partial necrosis (browning), or stunting/wilting.
+     - "Severe Injury" - Heavy chlorosis/bleaching, extensive necrosis (browning), or severe wilting/stunting (e.g., ALS/HPPD inhibitor white/bleached symptoms).
+     - "Dead/Desiccated" - Weeds are completely dead, dried, and turned entirely brown, yellow, or bleached white, with no surviving green tissue.
+     - "Burndown" - Rapid wilting and browning typical of contact herbicides.
 
 4. **Growth Stage**: Record stage as one of: Seedling, Vegetative, Flowering, Mature
 
-5. **Infestation Level**: Classify overall weed pressure as: None, Low, Moderate, High, or Severe
+5. **Infestation Level**: Classify overall living green weed pressure as: None, Low, Moderate, High, or Severe
 
 6. **Confidence**: Rate image assessment confidence as LOW, MEDIUM, or HIGH
 
