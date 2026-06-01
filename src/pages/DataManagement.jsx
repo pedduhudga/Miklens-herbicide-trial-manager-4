@@ -6,6 +6,7 @@ import CloudBackup from '../components/CloudBackup.jsx';
 import { exportCSV, exportZIP, importCSV } from '../utils/exportUtils.js';
 import { updateTrial, updateProject, updateFormulation } from '../services/dataLayer.js'; // Adjust as needed
 import { calculateDAA } from '../utils/dateUtils.js';
+import { analyzePhoto } from '../services/multiProviderAI.js';
 
 export default function DataManagement({ onMenuClick }) {
   const { state, updateState, getAppState } = useAppState();
@@ -773,42 +774,12 @@ export default function DataManagement({ onMenuClick }) {
   };
 
   const handleForceAiReanalysisAll = async () => {
-    const apiKeys = state.settings?.apiKeys || state.settings?.geminiApiKeys || [];
-    const keyIndex = state.settings?.currentApiKeyIndex || 0;
-    const geminiKey = state.settings?.geminiApiKey || (apiKeys[keyIndex]?.key || apiKeys[keyIndex] || apiKeys[0]?.key || apiKeys[0]);
-    if (!geminiKey) {
-      toast('No Gemini API key configured. Please add one in Settings.', 'error');
+    const hasKeys = (state.settings?.apiKeys || []).length > 0 || state.settings?.geminiApiKey;
+    if (!hasKeys) {
+      toast('No API keys configured. Please add one in Settings.', 'error');
       return;
     }
 
-    const fetchGeminiWithRetry = async (url, options, maxRetries = 5) => {
-      let delay = 2000;
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        let is429 = false;
-        try {
-          const res = await fetch(url, options);
-          if (res.ok) return res;
-          
-          is429 = res.status === 429;
-          const isTransient = is429 || (res.status >= 500 && res.status <= 599);
-          if (!isTransient || attempt === maxRetries) {
-            throw new Error(`Gemini API error: ${res.status}`);
-          }
-          
-          const waitTime = is429 ? Math.max(delay, 15000) : delay;
-          console.warn(`[AI Retry] Attempt ${attempt} failed with status ${res.status}. Retrying in ${waitTime}ms...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          delay = is429 ? waitTime * 1.5 : delay * 2;
-        } catch (err) {
-          if (attempt === maxRetries) throw err;
-          const waitTime = is429 ? 15000 : delay;
-          console.warn(`[AI Retry] Attempt ${attempt} caught error: ${err.message}. Retrying in ${waitTime}ms...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          delay = is429 ? waitTime * 1.5 : delay * 2;
-        }
-      }
-    };
-    
     const allTrials = [...(state.trials || [])];
     if (!allTrials.length) {
       toast('No trials on record to analyze', 'info');
@@ -862,79 +833,25 @@ export default function DataManagement({ onMenuClick }) {
         const photoUrl = photo.url || photo.fileData;
         if (!photoUrl) continue;
 
-        // Extract Drive file ID if this is a Google Drive URL
-        const driveMatch = typeof photoUrl === 'string' && photoUrl.includes('drive.google.com') && photoUrl.match(/(?:[?&]id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
-        const driveFileId = driveMatch ? driveMatch[1] : null;
-        let fileDataPayload = null;
-
-        if (driveFileId) {
-          fileDataPayload = {
-            fileData: {
-              mimeType: 'image/jpeg',
-              fileUri: `https://drive.google.com/uc?export=download&id=${driveFileId}`
-            }
-          };
-        } else if (photoUrl.startsWith('data:')) {
-          const parts = photoUrl.split(',');
-          const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-          const base64 = parts[1];
-          fileDataPayload = {
-            inlineData: {
-              mimeType: mime,
-              data: base64
-            }
-          };
-        }
-
-        if (!fileDataPayload) continue;
-
         // Calculate DAA
         const photoDate = photo.date || trial.Date || new Date().toISOString().split('T')[0];
         const trialDate = trial.Date || photoDate;
         const daa = Math.max(0, Math.round((new Date(photoDate) - new Date(trialDate)) / (1000 * 60 * 60 * 24)));
 
-        const promptText = `Analyze this herbicide trial photo for weed control efficacy.
-Formulation applied: ${trial.FormulationName || 'Unknown'}
-Target Weed: ${trial.WeedSpecies || 'Unknown'}
-Days After Application (DAA): ${daa}
-
-CRITICAL RULES:
-1. Ignore dead weeds (brown, bleached white, or yellow/chlorotic). Only count healthy, living green weeds in the cover percentage.
-2. Estimate the living weed cover percentage (0-100%).
-3. Identify the main weed species and estimate their individual living cover.
-4. Provide a brief agronomical efficacy assessment (1 sentence).
-
-Return ONLY a raw JSON object with this schema:
-{
-  "totalWeedCover": number,
-  "weeds": [
-    { "species": "species name", "cover": number, "status": "Vegetative/Top-kill/Regrowth/Unaffected", "growthStage": "Seedling/Vegetative/Flowering/Mature", "notes": "notes" }
-  ],
-  "efficacyAssessment": "assessment sentence"
-}`;
-
         try {
-          const response = await fetchGeminiWithRetry(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{
-                  parts: [
-                    { text: promptText },
-                    fileDataPayload
-                  ]
-                }],
-                generationConfig: {
-                  responseMimeType: "application/json"
-                }
-              }),
-            }
-          );
-          const resJson = await response.json();
-          const jsonText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-          const aiData = JSON.parse(jsonText.replace(/```json/g, '').replace(/```/g, '').trim());
+          const result = await analyzePhoto(photoUrl, {
+            treatment: trial.FormulationName || 'Unknown',
+            daa: daa,
+            rep: trial.Replication || 1
+          }, (progressMsg) => {
+            setRepairState(prev => ({
+              ...prev,
+              currentTrialName: `${trial.FormulationName || 'Trial'} - ${progressMsg}`
+            }));
+          });
+
+          if (!result.success) throw new Error(result.error || 'AI analysis failed');
+          const aiData = result.data;
 
           const normalizedWeeds = (aiData.weeds || []).map(w => ({
             species: w.species || 'Unknown',
@@ -954,7 +871,7 @@ Return ONLY a raw JSON object with this schema:
             weedCover: totalWeedCover,
             weedDetails: normalizedWeeds.length > 0 ? normalizedWeeds : [{ species: 'No weeds detected', cover: 0, status: '', notes: aiData.notes || 'AI-analyzed' }],
             notes: aiData.efficacyAssessment || `AI-analyzed on ${new Date().toLocaleDateString()}`,
-            aiConfidence: 'HIGH',
+            aiConfidence: aiData.confidence || 'HIGH',
             aiEfficacyAssessment: aiData.efficacyAssessment || '',
             status: 'Analyzed',
             source: 'AI',
@@ -973,8 +890,8 @@ Return ONLY a raw JSON object with this schema:
           console.error(`AI analysis failed for photo in trial ${trial.ID}:`, e);
         }
 
-        // Delay to respect the 15 RPM free tier rate limit
-        await new Promise(r => setTimeout(r, 4000));
+        // Delay to respect rate limits
+        await new Promise(r => setTimeout(r, 3000));
       }
 
       if (trialChanged) {
