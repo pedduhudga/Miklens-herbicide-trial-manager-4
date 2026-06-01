@@ -781,24 +781,31 @@ export default function DataManagement({ onMenuClick }) {
       return;
     }
 
-    const fetchGeminiWithRetry = async (url, options, maxRetries = 4) => {
-      let delay = 1500;
+    const fetchGeminiWithRetry = async (url, options, maxRetries = 5) => {
+      let delay = 2000;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        let is429 = false;
         try {
           const res = await fetch(url, options);
           if (res.ok) return res;
           
-          const isTransient = res.status === 429 || (res.status >= 500 && res.status <= 599);
+          is429 = res.status === 429;
+          const isTransient = is429 || (res.status >= 500 && res.status <= 599);
           if (!isTransient || attempt === maxRetries) {
             throw new Error(`Gemini API error: ${res.status}`);
           }
-          console.warn(`[AI Retry] Attempt ${attempt} failed with status ${res.status}. Retrying in ${delay}ms...`);
+          
+          const waitTime = is429 ? Math.max(delay, 15000) : delay;
+          console.warn(`[AI Retry] Attempt ${attempt} failed with status ${res.status}. Retrying in ${waitTime}ms...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          delay = is429 ? waitTime * 1.5 : delay * 2;
         } catch (err) {
           if (attempt === maxRetries) throw err;
-          console.warn(`[AI Retry] Attempt ${attempt} caught error: ${err.message}. Retrying in ${delay}ms...`);
+          const waitTime = is429 ? 15000 : delay;
+          console.warn(`[AI Retry] Attempt ${attempt} caught error: ${err.message}. Retrying in ${waitTime}ms...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          delay = is429 ? waitTime * 1.5 : delay * 2;
         }
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2;
       }
     };
     
@@ -966,8 +973,8 @@ Return ONLY a raw JSON object with this schema:
           console.error(`AI analysis failed for photo in trial ${trial.ID}:`, e);
         }
 
-        // Small delay to prevent rate limits
-        await new Promise(r => setTimeout(r, 1200));
+        // Delay to respect the 15 RPM free tier rate limit
+        await new Promise(r => setTimeout(r, 4000));
       }
 
       if (trialChanged) {
