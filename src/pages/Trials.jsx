@@ -716,7 +716,8 @@ export default function Trials({ onMenuClick }) {
       : null;
     const projectName = project ? project.Name : 'Ungrouped Projects';
     const dosageSuffix = targetTrial.Dosage ? ` (${targetTrial.Dosage})` : '';
-    const trialNameWithDate = `${targetTrial.FormulationName || 'Unknown Formulation'}${dosageSuffix} (${targetTrial.Date ? targetTrial.Date.split('T')[0] : photoDate})`.trim();
+    const idSuffix = targetTrial.ID ? ` - ${String(targetTrial.ID).slice(-5)}` : '';
+    const trialNameWithDate = `${targetTrial.FormulationName || 'Unknown Formulation'}${dosageSuffix} (${targetTrial.Date ? targetTrial.Date.split('T')[0] : photoDate})${idSuffix}`.trim();
     const folderPath = [projectName, trialNameWithDate];
 
     // Optimistically add a placeholder with tempId so the photo appears immediately

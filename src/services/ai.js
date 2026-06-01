@@ -5294,8 +5294,10 @@ Write a 3-paragraph Narrative covering Methodology, Results and Conclusions. Foc
                         const existingPhotos = isUpdate ? state.croppedPhotosData.filter(p => p.isExisting) : [];
                         const projectId = formData.projectId || formData.projectID || formData.ProjectID;
                         const project = state.projects.find(p => p.ID == projectId);
+                        const projectName = project ? project.Name : 'Ungrouped Projects';
                         const dosageSuffix = formData.dosage || formData.Dosage ? ` (${formData.dosage || formData.Dosage})` : '';
-                        const trialNameWithDate = `${formulation ? formulation.Name : 'Unknown Formulation'}${dosageSuffix} (${formData.date || new Date().toISOString().split('T')[0]})`.trim();
+                        const idSuffix = id ? ` - ${String(id).slice(-5)}` : '';
+                        const trialNameWithDate = `${formulation ? formulation.Name : 'Unknown Formulation'}${dosageSuffix} (${formData.date || new Date().toISOString().split('T')[0]})${idSuffix}`.trim();
                         const folderPath = [projectName, trialNameWithDate];
 
                         console.log('Uploading photos with path:', folderPath);
@@ -19837,7 +19839,8 @@ Total Trials: ${(state.trials || []).length} | Total Projects: ${(state.projects
                             const project = state.projects.find(p => p.ID === trial.ProjectID);
                             const projectName = project ? project.Name : 'Ungrouped Projects';
                             const dosageSuffix = trial.Dosage ? ` (${trial.Dosage})` : '';
-                            const trialNameWithDate = `${trial.FormulationName || 'Unknown Formulation'}${dosageSuffix} (${trial.Date ? new Date(trial.Date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]})`.trim();
+                            const idSuffix = trial.ID ? ` - ${String(trial.ID).slice(-5)}` : '';
+                            const trialNameWithDate = `${trial.FormulationName || 'Unknown Formulation'}${dosageSuffix} (${trial.Date ? new Date(trial.Date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]})${idSuffix}`.trim();
                             folderPath = [projectName, trialNameWithDate];
                         }
 

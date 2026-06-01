@@ -149,7 +149,8 @@ export async function processSyncQueue(getAppState, updateAppState, showToast, r
                             const project = state.projects.find(p => p.ID === trial.ProjectID);
                             const projectName = project ? project.Name : 'Ungrouped Projects';
                             const dosageSuffix = trial.Dosage ? ` (${trial.Dosage})` : '';
-                            const trialNameWithDate = `${trial.FormulationName || 'Unknown Formulation'}${dosageSuffix} (${trial.Date ? new Date(trial.Date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]})`.trim();
+                            const idSuffix = trial.ID ? ` - ${String(trial.ID).slice(-5)}` : '';
+                            const trialNameWithDate = `${trial.FormulationName || 'Unknown Formulation'}${dosageSuffix} (${trial.Date ? new Date(trial.Date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]})${idSuffix}`.trim();
                             folderPath = [projectName, trialNameWithDate];
                         }
 
