@@ -4,7 +4,7 @@ import { processSyncQueue } from '../services/sync.js';
 
 export function useSync() {
   const { state, dispatch, getAppState, updateState } = useAppState();
-  const [isOnline, setIsOnline] = useState(true); // Default true, managed by platform adapter
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true); // Default true, managed by platform adapter
   const [isSyncing, setIsSyncing] = useState(false);
 
   const showToast = useCallback((msg, type) => {
@@ -20,7 +20,6 @@ export function useSync() {
     const handleOnline = () => {
       setIsOnline(true);
       showToast('Back online! Syncing data...', 'info');
-      if (state.syncQueue && state.syncQueue.length > 0) runSync();
     };
 
     const handleOffline = () => {
@@ -35,8 +34,17 @@ export function useSync() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [state.syncQueue, showToast]);
+  }, [showToast]);
 
+  // Initial sync and when isOnline changes
+  useEffect(() => {
+    if (isOnline && state.syncQueue && state.syncQueue.length > 0) {
+      const pending = state.syncQueue.filter(s => s.status === 'pending' || s.status === 'failed').length;
+      if (pending > 0) {
+        runSync();
+      }
+    }
+  }, [isOnline, state.syncQueue]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -59,6 +67,17 @@ export function useSync() {
       setIsSyncing(false);
     }
   }, [isSyncing, isOnline, getAppState, updateState, showToast, renderSyncStatus]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.processSyncQueue = runSync;
+    }
+    return () => {
+      if (typeof window !== 'undefined' && window.processSyncQueue === runSync) {
+        window.processSyncQueue = undefined;
+      }
+    };
+  }, [runSync]);
 
   const addToSyncQueue = useCallback((action) => {
     dispatch({ type: 'ADD_SYNC_ITEM', payload: action });

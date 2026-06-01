@@ -2,7 +2,8 @@ import { apiCall } from './db.js';
 let _isSyncProcessing = false;
 
 export async function processSyncQueue(getAppState, updateAppState, showToast, renderSyncStatus) {
-                if (_isSyncProcessing || getAppState().syncQueue.length === 0) return;
+                const state = getAppState();
+                if (_isSyncProcessing || state.syncQueue.length === 0) return;
 
                 const now = Date.now();
                 if (now - _lastSyncAttempt < SYNC_MIN_INTERVAL) {

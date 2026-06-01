@@ -60,7 +60,7 @@ const emptyForm = () => ({
 import { useLocation } from 'react-router-dom';
 
 export default function Trials({ onMenuClick }) {
-  const { state, updateState, getAppState } = useAppState();
+  const { state, updateState, getAppState, dispatch } = useAppState();
   const location = useLocation();
 
   // --- List view state ---
@@ -722,8 +722,32 @@ export default function Trials({ onMenuClick }) {
     const photoEntry = { tempId, fileData: dataUrl, date: photoDate, label: cameraMode === 'weed' ? 'Weed Photo' : 'Field Observation', identifications: [] };
     const photosOptimistic = [...safeJsonParse(targetTrial.PhotoURLs, []), photoEntry];
     const optimisticTrial = { ...targetTrial, PhotoURLs: JSON.stringify(photosOptimistic) };
-    updateState({ trials: trials.map(t => t.ID === optimisticTrial.ID ? optimisticTrial : t) });
+    updateState({ trials: getAppState().trials.map(t => t.ID === optimisticTrial.ID ? optimisticTrial : t) });
     if (activeTrial?.ID === targetTrial.ID) setActiveTrial(optimisticTrial);
+
+    // --- OFFLINE CHECK & QUEUE ---
+    if (!navigator.onLine || getAppState().isOnline === false) {
+      const syncItem = {
+        id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: cameraMode === 'weed' ? 'weed_upload' : 'general_upload',
+        status: 'pending',
+        trialId: targetTrial.ID,
+        timestamp: Date.now(),
+        photo: {
+          tempId: tempId,
+          fileData: dataUrl,
+          mimeType: 'image/jpeg',
+          fileName: fileName,
+          date: photoDate,
+          label: photoEntry.label
+        },
+        attempts: 0
+      };
+
+      dispatch({ type: 'ADD_SYNC_ITEM', payload: syncItem });
+      window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: 'App is offline. Photo queued for sync.', type: 'info' } }));
+      return;
+    }
 
     window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: `Uploading to Drive (${projectName} / ${trialNameWithDate})...`, type: 'info' } }));
 
@@ -744,7 +768,7 @@ export default function Trials({ onMenuClick }) {
         // Remove the optimistic placeholder from UI since upload failed
         const rollback = safeJsonParse(targetTrial.PhotoURLs, []).filter(p => p.tempId !== tempId);
         const rolledBack = { ...targetTrial, PhotoURLs: JSON.stringify(rollback) };
-        updateState({ trials: trials.map(t => t.ID === rolledBack.ID ? rolledBack : t) });
+        updateState({ trials: getAppState().trials.map(t => t.ID === rolledBack.ID ? rolledBack : t) });
         if (activeTrial?.ID === targetTrial.ID) setActiveTrial(rolledBack);
         const isConfig = uploadResult._errType === 'config';
         window.dispatchEvent(new CustomEvent('app:toast', { detail: {
@@ -766,7 +790,7 @@ export default function Trials({ onMenuClick }) {
       currentPhotos.push(finalEntry);
 
       const updatedTrial = { ...targetTrial, PhotoURLs: JSON.stringify(currentPhotos) };
-      updateState({ trials: trials.map(t => t.ID === updatedTrial.ID ? updatedTrial : t) });
+      updateState({ trials: getAppState().trials.map(t => t.ID === updatedTrial.ID ? updatedTrial : t) });
       if (activeTrial?.ID === targetTrial.ID) setActiveTrial(updatedTrial);
 
       await updateTrial({ ID: updatedTrial.ID, PhotoURLs: updatedTrial.PhotoURLs }, getAppState);

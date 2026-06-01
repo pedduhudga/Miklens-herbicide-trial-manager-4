@@ -158,6 +158,13 @@ export function AppStateProvider({ children }) {
 
   const getAppState = useCallback(() => stateRef.current, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.getAppState = getAppState;
+      window.updateState = updateState;
+    }
+  }, [getAppState, updateState]);
+
   const value = {
     state,
     dispatch,

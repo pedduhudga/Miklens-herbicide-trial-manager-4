@@ -29,6 +29,7 @@ import Login from './pages/Login.jsx';
 import MigrationTool from './pages/MigrationTool.jsx';
 import { useAuth } from './hooks/useAuth.js';
 import { useAppState } from './hooks/useAppState.jsx';
+import { useSync } from './hooks/useSync.js';
 import { getAllData } from './services/dataLayer.js';
 import { initAI } from './services/ai.js';
 
@@ -47,6 +48,9 @@ function AppLayout() {
 
   const { state, updateState, getAppState } = useAppState();
   const { isAuthenticated } = useAuth();
+
+  // Mount the sync loop hook
+  useSync();
 
   const firebaseEnabled = !!state.settings?.firebaseEnabled;
   const isConfigured = firebaseEnabled
