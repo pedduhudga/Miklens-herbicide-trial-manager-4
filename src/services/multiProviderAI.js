@@ -487,7 +487,7 @@ export async function analyzePhotosBatch(items, onProgress, onResult) {
     });
 
     if (result.success && result.data) {
-      if (onResult) await onResult({ trialId: item.trialId, daa: item.daa, data: result.data });
+      if (onResult) await onResult({ trialId: item.trialId, daa: item.daa, data: result.data, photoDate: item.photoDate });
     }
 
     if (i < items.length - 1) await delay(4000);

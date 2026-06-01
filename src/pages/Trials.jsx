@@ -887,7 +887,7 @@ export default function Trials({ onMenuClick }) {
       });
 
       if (result.success) {
-        await createObservationFromAI(targetTrial, daa, result.data);
+        await createObservationFromAI(targetTrial, daa, result.data, photoDate);
         window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: `AI complete! Logged ${result.data.weeds?.length || 0} weed species at DAA ${daa}`, type: 'success' } }));
         // Auto-run cover detection in background
         detectWeedCoverAI(dataUrl).then(coverResult => {
@@ -961,7 +961,7 @@ export default function Trials({ onMenuClick }) {
   };
 
   // ── AI PHOTO ANALYSIS ─────────────────────────────────────────────
-  const createObservationFromAI = async (trial, daa, aiData) => {
+  const createObservationFromAI = async (trial, daa, aiData, obsDate = null) => {
     const efficacyData = validateEfficacyData(safeJsonParse(trial.EfficacyDataJSON, []));
 
     // Normalize weed data with enhanced fields
@@ -984,7 +984,7 @@ export default function Trials({ onMenuClick }) {
     if (aiData.notes) aiNotes.push(aiData.notes);
 
     const newObs = {
-      date: new Date().toISOString().split('T')[0],
+      date: obsDate || new Date().toISOString().split('T')[0],
       daa: Number(daa),
       weedCover: totalWeedCover,
       weedDetails: normalizedWeeds.length > 0 ? normalizedWeeds : [{ species: 'No weeds detected', cover: 0, status: '', notes: aiData.notes || 'AI-analyzed' }],
@@ -1107,10 +1107,10 @@ export default function Trials({ onMenuClick }) {
       ({ current, total, trialId, message }) => {
         setAiBatchProgress({ current, total, message });
       },
-      async ({ trialId, daa, data }) => {
+      async ({ trialId, daa, data, photoDate }) => {
         const trial = trials.find(t => t.ID === trialId);
         if (trial) {
-          await createObservationFromAI(trial, daa, data);
+          await createObservationFromAI(trial, daa, data, photoDate);
           if (!analyzedDAAs.has(trialId)) analyzedDAAs.set(trialId, new Set());
           analyzedDAAs.get(trialId).add(daa);
         }
@@ -1162,7 +1162,7 @@ export default function Trials({ onMenuClick }) {
       }, (msg) => window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg, type: 'info' } })));
 
       if (result.success) {
-        await createObservationFromAI(activeTrial, daa, result.data);
+        await createObservationFromAI(activeTrial, daa, result.data, photoDate);
         window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: `AI complete! Detected ${result.data.weeds?.length || 0} weed species at DAA ${daa}. Observation saved.`, type: 'success' } }));
       } else {
         window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: 'AI analysis failed: ' + (result.error || 'Unknown error'), type: 'error' } }));
@@ -2053,12 +2053,50 @@ Exactly 2 sentences. Follow this structure:
   const handleSavePhotoEdit = useCallback(async () => {
     if (!activeTrial || !photoEditModal) return;
     const photos = safeJsonParse(activeTrial.PhotoURLs, []);
-    photos[photoEditModal.idx] = { ...photos[photoEditModal.idx], label: photoEditModal.label, date: photoEditModal.date };
-    const updated = { ...activeTrial, PhotoURLs: JSON.stringify(photos) };
+    const oldPhoto = photos[photoEditModal.idx];
+    const oldDate = oldPhoto?.date;
+    const newDate = photoEditModal.date;
+
+    photos[photoEditModal.idx] = { ...oldPhoto, label: photoEditModal.label, date: newDate };
+
+    const efficacyData = validateEfficacyData(safeJsonParse(activeTrial.EfficacyDataJSON, []));
+    let efficacyChanged = false;
+
+    if (oldDate && newDate && oldDate !== newDate) {
+      const oldDaa = activeTrial.Date ? calculateDAA(oldDate, activeTrial.Date) : null;
+      const newDaa = activeTrial.Date ? calculateDAA(newDate, activeTrial.Date) : null;
+
+      efficacyData.forEach(obs => {
+        if (obs.date === oldDate || (oldDaa !== null && obs.daa === oldDaa)) {
+          obs.date = newDate;
+          if (newDaa !== null) {
+            obs.daa = newDaa;
+          }
+          efficacyChanged = true;
+        }
+      });
+    }
+
+    if (efficacyChanged) {
+      efficacyData.sort((a, b) => a.daa - b.daa);
+    }
+
+    const updated = {
+      ...activeTrial,
+      PhotoURLs: JSON.stringify(photos),
+      ...(efficacyChanged ? { EfficacyDataJSON: JSON.stringify(efficacyData) } : {})
+    };
+
     updateState({ trials: trials.map(t => t.ID === updated.ID ? updated : t) });
     setActiveTrial(updated);
     setPhotoEditModal(null);
-    try { await updateTrial({ ID: updated.ID, PhotoURLs: updated.PhotoURLs }, getAppState); } catch(e) {}
+    try {
+      await updateTrial({
+        ID: updated.ID,
+        PhotoURLs: updated.PhotoURLs,
+        ...(efficacyChanged ? { EfficacyDataJSON: updated.EfficacyDataJSON } : {})
+      }, getAppState);
+    } catch (e) {}
     window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: 'Photo updated', type: 'success' } }));
   }, [activeTrial, photoEditModal, trials, updateState, getAppState]);
 
