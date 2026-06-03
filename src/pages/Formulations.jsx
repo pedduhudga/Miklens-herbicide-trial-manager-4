@@ -15,7 +15,7 @@ export default function Formulations({ onMenuClick }) {
   // Form State
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
-  const [ingredients, setIngredients] = useState([{ name: '', quantity: '', unit: '' }]);
+  const [ingredients, setIngredients] = useState([{ name: '', quantity: '', unit: 'ml' }]);
 
   const CURRENCY_SYMBOL = '₹';
 
@@ -24,19 +24,19 @@ export default function Formulations({ onMenuClick }) {
       setEditingForm(duplicate ? null : form);
       setName(duplicate ? `${form.Name} (Copy)` : form.Name);
       setNotes(form.Notes || '');
-      const parsedIngs = safeJsonParse(form.IngredientsJSON, [{ name: '', quantity: '', unit: '' }]);
-      setIngredients(parsedIngs.length > 0 ? parsedIngs : [{ name: '', quantity: '', unit: '' }]);
+      const parsedIngs = safeJsonParse(form.IngredientsJSON, [{ name: '', quantity: '', unit: 'ml' }]);
+      setIngredients(parsedIngs.length > 0 ? parsedIngs : [{ name: '', quantity: '', unit: 'ml' }]);
     } else {
       setEditingForm(null);
       setName('');
       setNotes('');
-      setIngredients([{ name: '', quantity: '', unit: '' }]);
+      setIngredients([{ name: '', quantity: '', unit: 'ml' }]);
     }
     setIsModalOpen(true);
   };
 
   const handleAddIngredientRow = () => {
-    setIngredients([...ingredients, { name: '', quantity: '', unit: '' }]);
+    setIngredients([...ingredients, { name: '', quantity: '', unit: 'ml' }]);
   };
 
   const handleRemoveIngredientRow = (index) => {
@@ -53,7 +53,14 @@ export default function Formulations({ onMenuClick }) {
     if (field === 'name') {
       const selectedLibIng = state.ingredients.find(i => i.Name === value);
       if (selectedLibIng) {
-        newIngs[index].unit = selectedLibIng.Unit || '';
+        const baseUnit = String(selectedLibIng.Unit || '').toLowerCase().trim();
+        if (baseUnit === 'l' || baseUnit === 'litre' || baseUnit === 'litres' || baseUnit === 'liter' || baseUnit === 'liters' || baseUnit === 'ml' || baseUnit === 'millilitre' || baseUnit === 'millilitres') {
+          newIngs[index].unit = 'ml';
+        } else if (baseUnit === 'kg' || baseUnit === 'kilogram' || baseUnit === 'kilograms' || baseUnit === 'g' || baseUnit === 'gm' || baseUnit === 'gram' || baseUnit === 'grams') {
+          newIngs[index].unit = 'gm';
+        } else {
+          newIngs[index].unit = selectedLibIng.Unit || '';
+        }
       }
     }
     setIngredients(newIngs);
