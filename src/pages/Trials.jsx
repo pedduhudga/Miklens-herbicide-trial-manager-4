@@ -1916,14 +1916,28 @@ export default function Trials({ onMenuClick }) {
         ? parseInt(detailTrial.FinalControlDuration, 10)
         : (detailTrial.Date ? Math.max(0, Math.round((new Date() - new Date(detailTrial.Date)) / 86400000)) : null);
 
-      const speciesMap = {};
+      const allSpecies = new Set();
       sorted.forEach(o => {
         (o.weedDetails || []).forEach(wd => {
-          if (!wd.species) return;
-          if (!speciesMap[wd.species]) speciesMap[wd.species] = [];
-          speciesMap[wd.species].push({ daa: o.daa, cover: wd.cover ?? o.weedCover ?? 0, status: wd.status || '' });
+          if (wd.species && wd.species.toLowerCase() !== 'total') {
+            allSpecies.add(wd.species);
+          }
         });
       });
+
+      const speciesMap = {};
+      allSpecies.forEach(sp => {
+        speciesMap[sp] = [];
+        sorted.forEach(o => {
+          const match = (o.weedDetails || []).find(wd => wd.species === sp);
+          if (match) {
+            speciesMap[sp].push({ daa: o.daa, cover: match.cover ?? 0, status: match.status || '' });
+          } else {
+            speciesMap[sp].push({ daa: o.daa, cover: 0, status: 'Not detected' });
+          }
+        });
+      });
+
       const speciesAnalysis = Object.entries(speciesMap).map(([sp, pts]) => {
         const spSorted = pts.sort((a, b) => a.daa - b.daa);
         const spInit = spSorted[0]?.cover ?? 0;
