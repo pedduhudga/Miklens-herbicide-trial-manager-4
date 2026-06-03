@@ -1893,9 +1893,9 @@ LANGUAGE AND TONE RULES — follow strictly:
 7. Application date must be formatted as DD-Mon-YYYY (e.g. 19-Apr-2026). Dosage units: write "mL" not "ml". Write coordinates as provided. Use "at coordinates X, Y" — never "at location X, Y".
 8. Do NOT use the word "phytotoxic" or "phytotoxicity". Use "herbicidal injury symptoms" instead.
 9. Write in third person. Past tense for finalized trials, present tense for ongoing.
-10. Do NOT include a Recommendation or Conclusion section.
+10. Include a detailed, scientific conclusion in Section 5 summarizing the trial outcome, control duration, addressed/unaddressed weeds, and re-emergence.
 
-OUTPUT STRUCTURE — write exactly these 4 sections, nothing else:
+OUTPUT STRUCTURE — write exactly these 5 sections, nothing else:
 
 1. Application & Setup
 One sentence. Start directly with the product name (no "Product X was applied" prefix — just "[Product name] was applied…"). Include dosage (with proper units), application date (DD-Mon-YYYY), coordinates, and all target weed species with scientific names in parentheses.
@@ -1918,7 +1918,14 @@ For EACH species in the per-species breakdown — write the species heading (Com
 4. Control Duration Interpretation
 Exactly 2 sentences. Follow this structure:
 - Sentence 1: "The [last DAA]-day observation period revealed no measurable reduction in weed cover across all evaluated species." (observation period = last DAA number exactly, not +1)
-- Sentence 2: "Treatment performance was classified as [Poor/Fair/Good/Excellent], indicating insufficient weed control performance under the evaluated field conditions."`;
+- Sentence 2: "Treatment performance was classified as [Poor/Fair/Good/Excellent], indicating insufficient weed control performance under the evaluated field conditions."
+
+5. Agronomic Conclusion & Weed Control Assessment
+Write 3 to 4 detailed sentences providing a proper scientific conclusion:
+- Sentence 1: Detail the duration of effective control and peak control percentage (e.g. "Effective weed suppression of X% was maintained for Y days during the trial...").
+- Sentence 2: Detail which weed species were successfully addressed (controlled/suppressed) and to what maximum efficacy percentage, and which weed species were not successfully addressed (e.g. "The treatment successfully addressed [Species A] and [Species B] with peak control efficacy of X% and Y% respectively, while [Species C] remained unaddressed with negligible control...").
+- Sentence 3: Detail which weed species re-emerged or regrew during the trial and at which DAA the re-emergence or regrowth was detected (e.g. "[Species D] exhibited re-emergence/regrowth, with an increase in cover detected starting at DAA Z.").
+- Sentence 4: Conclude with a final agronomic recommendation or assessment statement for the treatment under the evaluated conditions.`;
 
 
       // Use first available Gemini model (try 2.5-flash as reliable stable model)
