@@ -1053,7 +1053,7 @@ export default function Trials({ onMenuClick }) {
   };
 
   const handleAnalyzeAllPhotos = async (specificTrial = null) => {
-    const targetTrial = specificTrial || activeTrial;
+    const targetTrial = (specificTrial && specificTrial.ID) ? specificTrial : activeTrial;
     if (!targetTrial) return;
 
     // Get all trials for this project (or just the single trial)
@@ -3657,7 +3657,7 @@ Exactly 2 sentences. Follow this structure:
               <button onClick={() => setAiBatchModalOpen(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">
                 Cancel
               </button>
-              <button onClick={handleAnalyzeAllPhotos} className="px-4 py-2 text-sm font-semibold bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 shadow-lg flex items-center gap-2">
+              <button onClick={() => handleAnalyzeAllPhotos()} className="px-4 py-2 text-sm font-semibold bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 shadow-lg flex items-center gap-2">
                 <Sparkles className="w-4 h-4" /> Start AI Analysis
               </button>
             </div>
