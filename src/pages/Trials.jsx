@@ -1946,6 +1946,8 @@ export default function Trials({ onMenuClick }) {
       const prompt = `You are a senior agronomist writing a professional herbicide field trial narrative for an official regulatory-style report (SOP/TDS validation standard).
       
       Do NOT include any observations about photo mismatches, data anomalies, or reporting inconsistencies in the main 5 sections. Any data anomalies or discrepancies must be appended strictly at the end, separated by a custom delimiter.
+      
+      Do NOT include any suggestions, recommendations, comments about further monitoring, or proposals for future testing inside the main 5 sections. Keep the 5 sections strictly factual, reporting only observed data and final factual performance assessments. All recommendations, suggestions, and speculative remarks must be appended strictly at the end after the delimiter.
 
 TRIAL DATA:
 - Product: ${detailTrial.FormulationName}
@@ -1984,7 +1986,7 @@ LANGUAGE AND TONE RULES — follow strictly:
 7. Application date must be formatted as DD-Mon-YYYY (e.g. 19-Apr-2026). Dosage units: write "mL" not "ml". Write coordinates as provided. Use "at coordinates X, Y" — never "at location X, Y".
 8. Do NOT use the word "phytotoxic" or "phytotoxicity". Use "herbicidal injury symptoms" instead.
 9. Write in third person. Past tense for finalized trials, present tense for ongoing.
-10. Include a detailed, scientific conclusion in Section 5. If individual species baseline covers are recorded as 0% but overall weed cover drops significantly (e.g. from 100% to 5%), do NOT conclude that the treatment failed to control those species or that the data is an anomaly inside the main narrative sections. Simply state that target weeds were successfully controlled based on the overall cover reduction. Keep all comments about observation anomalies, data mismatch, or potential incorrect uploads completely out of the 5 main sections.
+10. Include a detailed, scientific conclusion in Section 5. If individual species baseline covers are recorded as 0% but overall weed cover drops significantly (e.g. from 100% to 5%), do NOT conclude that the treatment failed to control those species or that the data is an anomaly inside the main narrative sections. Simply state that target weeds were successfully controlled based on the overall cover reduction. Keep all comments about observation anomalies, data mismatch, suggestions, recommendations, or potential incorrect uploads completely out of the 5 main sections.
 
 OUTPUT STRUCTURE — write exactly these 5 sections, nothing else (no other intro/outro text, and no delimiters inside the 5 sections):
 
@@ -2015,12 +2017,14 @@ Write 3 to 4 detailed sentences providing a proper scientific conclusion:
 - Sentence 1: Detail the duration of effective control and peak control percentage.
 - Sentence 2: Detail which weed species were successfully addressed (controlled/suppressed) and to what maximum efficacy percentage. If individual species baseline covers were recorded as 0% but overall weed cover dropped significantly, clarify that since the overall weed cover was reduced by X%, the target weeds were successfully suppressed.
 - Sentence 3: Detail which weed species re-emerged or regrew during the trial and at which DAA the re-emergence or regrowth was detected.
-- Sentence 4: Conclude with a final agronomic recommendation or assessment statement for the treatment under the evaluated conditions.
+- Sentence 4: Conclude with a final factual agronomic performance assessment statement for the treatment under the evaluated conditions. Do NOT include future trial recommendations, suggestions for further evaluations, or speculative remarks.
 
-DETAILED ANOMALY DETECTION (APPEND SEPARATELY):
+DETAILED ANOMALIES & SUGGESTIONS (APPEND SEPARATELY):
 At the very end of your response, after the 5 sections, write a delimiter line: "---ANOMALIES---"
-Following this delimiter, perform a chronological and biological anomaly detection check. If any target weed species has a baseline cover of 0% but overall cover is high, or if any weed species suddenly appears or jumps in cover dramatically (e.g., from absent/low to >20% cover in a short interval, suggesting a potential photo mix-up or incorrect upload), list it here. Specify the species, DAAs, and the reason.
-If no anomalies are detected, write "None".`;
+Following this delimiter, perform:
+1. Chronological and biological anomaly detection check (such as 0% baseline target weeds, photo mismatch, or incorrect uploads).
+2. Factual recommendations, suggestions for future trials, and comments regarding further monitoring or evaluations.
+If none are present, write "None".`;
 
       const model = 'gemini-2.5-flash';
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
