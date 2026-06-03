@@ -291,24 +291,20 @@ export function validateEfficacyData (efficacy) {
                             if (baselineTotal > 10) {
                                 const zeroCoverSpecies = speciesRows.filter(x => (toNum(x.cover) || 0) <= 0.1);
                                 const combinedNotes = String(obs.notes || '').toLowerCase();
-                                const keywordsMap = {
-                                    'cyperus rotundus': ['sedge', 'nutsedge', 'cyperus', 'purple nutsedge'],
-                                    'cyperus esculentus': ['sedge', 'nutsedge', 'cyperus', 'yellow nutsedge'],
-                                    'cynodon dactylon': ['grass', 'bermuda', 'cynodon', 'couch'],
-                                    'rosa multiflora': ['rose', 'rosa', 'wild rose'],
-                                    'digitaria sanguinalis': ['crabgrass', 'crab', 'digitaria']
-                                };
+                                const noteWords = combinedNotes.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
                                 const toRedistribute = [];
                                 
                                 zeroCoverSpecies.forEach(x => {
                                     const spLower = String(x.species || '').trim().toLowerCase();
-                                    let isMentioned = false;
-                                    if (keywordsMap[spLower]) {
-                                        isMentioned = keywordsMap[spLower].some(kw => combinedNotes.includes(kw));
-                                    } else {
-                                        const words = spLower.split(/\s+/).filter(w => w.length > 3);
-                                        isMentioned = words.some(w => combinedNotes.includes(w));
-                                    }
+                                    const cleanWords = spLower
+                                        .replace(/[^a-z0-9\s]/g, ' ')
+                                        .split(/\s+/)
+                                        .filter(w => w.length > 3 && w !== 'weed' && w !== 'weeds' && w !== 'population' && w !== 'unidentified');
+                                    
+                                    const isMentioned = cleanWords.some(sw => {
+                                        return noteWords.some(nw => sw.includes(nw) || nw.includes(sw));
+                                    });
+                                    
                                     const isPresentLater = ordered.some(o => {
                                         if ((parseFloat(o.daa) || 0) <= baselineDaa) return false;
                                         const match = (o.weedDetails || []).find(wd => String(wd.species || '').trim().toLowerCase() === spLower);
