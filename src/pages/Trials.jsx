@@ -1931,9 +1931,9 @@ One sentence. Start directly with the product name (no "Product X was applied" p
 
 2. Overall Efficacy Trajectory
 Exactly 3 sentences. Follow this structure precisely:
-- Sentence 1: "At DAA 0, total weed cover was recorded at X%." (use "At DAA 0" — never "At 0 Days After Application (DAA 0)")
-- Sentence 2: "By DAA [last], total weed cover had increased to Y%, indicating inadequate weed control under the evaluated conditions." (combine the cover increase and interpretation into ONE sentence — do not state the cover increase twice)
-- Sentence 3: "No observable herbicidal injury symptoms or reduction in weed cover attributable to the treatment were detected during the observation period."
+- Sentence 1: "At DAA [first], total weed cover was recorded at X%." (use "At DAA [first]" — e.g. DAA 0 or DAA 1, whichever is the baseline)
+- Sentence 2: Dynamically describe the final weed cover (decrease, increase, or stagnation) and its control interpretation based on the actual data. If cover decreased significantly, describe it as showing successful or effective control (e.g. "By DAA [last], total weed cover had decreased to Y%, indicating highly effective control under the evaluated conditions"). If cover increased or remained high, describe it as inadequate control (e.g. "By DAA [last], total weed cover had increased to Y%, indicating inadequate weed control under the evaluated conditions").
+- Sentence 3: Dynamically describe the presence, progression, or absence of herbicidal injury symptoms (such as necrosis, bleaching, chlorosis, or desiccation) and physical weed responses observed in the timeline notes (e.g. "Significant necrosis and bleaching, indicative of herbicidal injury symptoms, were observed across the majority of the weed stand by DAA Z" or "No observable herbicidal injury symptoms or reduction in weed cover attributable to the treatment were detected during the observation period").
 Prefer the word "treatment" over "product" in the body text.
 
 3. Species-wise Performance
@@ -1946,8 +1946,8 @@ For EACH species in the per-species breakdown — write the species heading (Com
 
 4. Control Duration Interpretation
 Exactly 2 sentences. Follow this structure:
-- Sentence 1: "The [last DAA]-day observation period revealed no measurable reduction in weed cover across all evaluated species." (observation period = last DAA number exactly, not +1)
-- Sentence 2: "Treatment performance was classified as [Poor/Fair/Good/Excellent], indicating insufficient weed control performance under the evaluated field conditions."
+- Sentence 1: Dynamically describe the change or reduction in weed cover over the observation period based on the data (e.g., "The [last DAA]-day observation period revealed a significant and rapid reduction in overall weed cover across the evaluated species" or "The [last DAA]-day observation period revealed no measurable reduction in weed cover across all evaluated species").
+- Sentence 2: "Treatment performance was classified as [Poor/Fair/Good/Excellent], indicating [sufficient/highly effective/moderate/insufficient] weed control performance under the evaluated field conditions." (select the classification that aligns with the rated result or WCE achieved).
 
 5. Agronomic Conclusion & Weed Control Assessment
 Write 3 to 5 detailed sentences providing a proper scientific conclusion:
