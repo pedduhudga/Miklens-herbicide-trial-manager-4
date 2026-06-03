@@ -66,7 +66,33 @@ export default function Formulations({ onMenuClick }) {
       if (ing.name && ing.quantity) {
         const libIng = state.ingredients.find(i => i.Name === ing.name);
         if (libIng && parseFloat(libIng.Cost)) {
-          total += parseFloat(libIng.Cost) * parseFloat(ing.quantity);
+          const baseCost = parseFloat(libIng.Cost);
+          const baseUnit = String(libIng.Unit || '').toLowerCase().trim();
+          let usedQuantity = parseFloat(ing.quantity) || 0;
+          const usedUnit = String(ing.unit || '').toLowerCase().trim();
+          
+          if (!isNaN(baseCost) && !isNaN(usedQuantity)) {
+            let quantityInBaseUnit = usedQuantity;
+            
+            // L <-> ml conversions
+            if ((baseUnit === 'l' || baseUnit === 'litre' || baseUnit === 'litres' || baseUnit === 'liter' || baseUnit === 'liters') && 
+                (usedUnit === 'ml' || usedUnit === 'millilitre' || usedUnit === 'millilitres' || usedUnit === 'milliliter' || usedUnit === 'milliliters')) {
+              quantityInBaseUnit /= 1000;
+            } else if ((baseUnit === 'ml' || baseUnit === 'millilitre' || baseUnit === 'millilitres' || baseUnit === 'milliliter' || baseUnit === 'milliliters') && 
+                       (usedUnit === 'l' || usedUnit === 'litre' || usedUnit === 'litres' || usedUnit === 'liter' || usedUnit === 'liters')) {
+              quantityInBaseUnit *= 1000;
+            }
+            // kg <-> g/gm conversions
+            else if ((baseUnit === 'kg' || baseUnit === 'kilogram' || baseUnit === 'kilograms') && 
+                     (usedUnit === 'gm' || usedUnit === 'g' || usedUnit === 'gram' || usedUnit === 'grams')) {
+              quantityInBaseUnit /= 1000;
+            } else if ((usedUnit === 'kg' || usedUnit === 'kilogram' || usedUnit === 'kilograms') && 
+                       (baseUnit === 'gm' || baseUnit === 'g' || baseUnit === 'gram' || baseUnit === 'grams')) {
+              quantityInBaseUnit *= 1000;
+            }
+            
+            total += baseCost * quantityInBaseUnit;
+          }
         }
       }
     });
