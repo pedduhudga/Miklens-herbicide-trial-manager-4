@@ -208,3 +208,9 @@ export function canonicalizeWeedSpecies (rawName) {
 
                 return next;
             };
+
+            if (typeof window !== 'undefined') {
+                window.canonicalizeWeedSpecies = canonicalizeWeedSpecies;
+                window.isMixedWeedPlaceholder = isMixedWeedPlaceholder;
+                window.upsertCoverCorrectionNote = upsertCoverCorrectionNote;
+            }
