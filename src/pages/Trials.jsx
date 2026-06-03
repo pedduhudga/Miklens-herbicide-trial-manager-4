@@ -55,6 +55,7 @@ const emptyForm = () => ({
   Replication: '', PlotNumber: '',
   SoilPH: '', SoilClay: '', SoilSand: '', SoilOC: '', SoilTexture: '',
   YieldValue: '', IsLive: true,
+  ApplicationTiming: '', WeedGrowthStage: '',
 });
 
 import { useLocation } from 'react-router-dom';
@@ -276,6 +277,8 @@ export default function Trials({ onMenuClick }) {
         SoilPH: trial.SoilPH || '', SoilClay: trial.SoilClay || '',
         SoilSand: trial.SoilSand || '', SoilOC: trial.SoilOC || '',
         SoilTexture: trial.SoilTexture || '',
+        ApplicationTiming: trial.ApplicationTiming || '',
+        WeedGrowthStage: trial.WeedGrowthStage || '',
       });
     } else {
       setFormData({ ...emptyForm(), InvestigatorName: state.auth?.user?.Name || state.auth?.user?.Username || '' });
@@ -1125,7 +1128,11 @@ export default function Trials({ onMenuClick }) {
       ...latestTrial,
       EfficacyDataJSON: JSON.stringify(efficacyData),
       Result: resultRating,
-      WeedSpecies: normalizedWeeds.length > 0 ? normalizedWeeds.map(w => w.species).join(', ') : 'No weeds detected'
+      WeedSpecies: normalizedWeeds.length > 0 ? normalizedWeeds.map(w => w.species).join(', ') : 'No weeds detected',
+      ...(Number(daa) === 0 ? {
+        ApplicationTiming: latestTrial.ApplicationTiming || aiData.applicationTiming || '',
+        WeedGrowthStage: latestTrial.WeedGrowthStage || aiData.overallWeedGrowthStage || ''
+      } : {})
     };
 
     updateState({ trials: getAppState().trials.map(t => t.ID === updated.ID ? updated : t) });
@@ -1136,7 +1143,11 @@ export default function Trials({ onMenuClick }) {
         ID: latestTrial.ID,
         EfficacyDataJSON: updated.EfficacyDataJSON,
         Result: updated.Result,
-        WeedSpecies: updated.WeedSpecies
+        WeedSpecies: updated.WeedSpecies,
+        ...(Number(daa) === 0 ? {
+          ApplicationTiming: updated.ApplicationTiming,
+          WeedGrowthStage: updated.WeedGrowthStage
+        } : {})
       }, getAppState);
     } catch (e) {
       console.error('Failed to save AI observation:', e);
@@ -2587,6 +2598,17 @@ If none are present, write "None".`;
                 {['Excellent','Good','Fair','Poor','Control'].map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Application Timing</label>
+              <select value={formData.ApplicationTiming} onChange={e => setFormData({...formData, ApplicationTiming: e.target.value})} className="w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                <option value="">— Select Timing —</option>
+                {['PRE', 'E-POST', 'POST', 'L-POST'].map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Weed Growth Stage</label>
+              <input type="text" value={formData.WeedGrowthStage} onChange={e => setFormData({...formData, WeedGrowthStage: e.target.value})} className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400" placeholder="e.g. 2-4 leaf stage, tillering" />
+            </div>
           </div>
 
           {/* Weather */}
@@ -2816,6 +2838,8 @@ If none are present, write "None".`;
                       ['Project', projects.find(p => p.ID === detailTrial.ProjectID)?.Name || '—', FolderPlus],
                       ['Replication', detailTrial.Replication || '—', Hash],
                       ['Plot #', detailTrial.PlotNumber || '—', Hash],
+                      ['App Timing', detailTrial.ApplicationTiming || '—', Clock],
+                      ['Growth Stage', detailTrial.WeedGrowthStage || '—', Leaf],
                       ['Control Days', (() => { if (detailTrial.FinalControlDuration) return `${detailTrial.FinalControlDuration}d (finalized)`; if (!detailTrial.Date) return '—'; const d = Math.max(0, Math.round((new Date() - new Date(detailTrial.Date)) / 86400000)); return `${d}d (running)`; })(), Clock],
                       ...(detailTrial.YieldValue ? [['Yield (t/ha)', detailTrial.YieldValue, Leaf]] : []),
                     ].map(([label, val, Icon]) => (
