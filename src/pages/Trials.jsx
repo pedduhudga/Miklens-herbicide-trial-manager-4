@@ -1966,7 +1966,7 @@ LANGUAGE AND TONE RULES — follow strictly:
 7. Application date must be formatted as DD-Mon-YYYY (e.g. 19-Apr-2026). Dosage units: write "mL" not "ml". Write coordinates as provided. Use "at coordinates X, Y" — never "at location X, Y".
 8. Do NOT use the word "phytotoxic" or "phytotoxicity". Use "herbicidal injury symptoms" instead.
 9. Write in third person. Past tense for finalized trials, present tense for ongoing.
-10. Include a detailed, scientific conclusion in Section 5 summarizing the trial outcome, control duration, addressed/unaddressed weeds, and re-emergence.
+10. Include a detailed, scientific conclusion in Section 5. If individual species baseline covers are recorded as 0% at DAA 0/1 but overall weed cover drops significantly (e.g. from 100% to 5%), do NOT conclude that the treatment failed to control those species. Instead, interpret this as highly effective suppression of the overall population, note the species cover reporting mismatch, and conclude that the weeds in the plot were successfully controlled.
 
 OUTPUT STRUCTURE — write exactly these 5 sections, nothing else:
 
@@ -1996,7 +1996,7 @@ Exactly 2 sentences. Follow this structure:
 5. Agronomic Conclusion & Weed Control Assessment
 Write 3 to 5 detailed sentences providing a proper scientific conclusion:
 - Sentence 1: Detail the duration of effective control and peak control percentage (e.g. "Effective weed suppression of X% was maintained for Y days during the trial...").
-- Sentence 2: Detail which weed species were successfully addressed (controlled/suppressed) and to what maximum efficacy percentage, and which weed species were not successfully addressed (e.g. "The treatment successfully addressed [Species A] and [Species B] with peak control efficacy of X% and Y% respectively, while [Species C] remained unaddressed with negligible control...").
+- Sentence 2: Detail which weed species were successfully addressed (controlled/suppressed) and to what maximum efficacy percentage. Special Rule for Baseline Discrepancies: If individual species baseline covers were recorded as 0% at DAA 0/1 but overall weed cover dropped significantly (e.g. from 100% to 5%), do NOT say the treatment failed to control those species. Instead, clarify that since the overall weed cover was reduced by X%, the target weeds were successfully suppressed, and note the species-specific 0% baseline value as a data recording discrepancy rather than a lack of herbicidal control.
 - Sentence 3: Detail which weed species re-emerged or regrew during the trial and at which DAA the re-emergence or regrowth was detected (e.g. "[Species D] exhibited re-emergence/regrowth, with an increase in cover detected starting at DAA Z.").
 - Sentence 4: Chronological & Biological Anomaly Detection. Analyze the data for chronological or biological implausibility. If any weed species suddenly appears with high cover (e.g. >20%) when it was absent in prior observations, or if there is a sudden, extreme spike in cover over a short interval (e.g. cover jumping from 5% at DAA 3 to 70% at DAA 5 due to the sudden emergence of a new species), you MUST explicitly flag this as a "potential observation/data anomaly due to possible incorrect photo upload" and specify the affected species and DAAs.
 - Sentence 5 (or final sentence): Conclude with a final agronomic recommendation or assessment statement for the treatment under the evaluated conditions.`;
@@ -2054,6 +2054,19 @@ Write 3 to 5 detailed sentences providing a proper scientific conclusion:
     setQrGenerated(false);
     setExportMenuOpen(false);
   }, [detailTrial?.ID]);
+
+  // Automatically correct existing stale ratings (e.g. legacy/deleted observations not matching Result field) on trial selection
+  useEffect(() => {
+    if (!detailTrial) return;
+    const efficacy = validateEfficacyData(safeJsonParse(detailTrial.EfficacyDataJSON, []));
+    const calculated = calculateResultRating(efficacy);
+    if (calculated !== detailTrial.Result) {
+      const updated = { ...detailTrial, Result: calculated };
+      updateState({ trials: trials.map(t => t.ID === updated.ID ? updated : t) });
+      setActiveTrial(updated);
+      updateTrial({ ID: updated.ID, Result: calculated }, getAppState).catch(console.error);
+    }
+  }, [detailTrial?.ID, detailTrial?.EfficacyDataJSON, trials, updateState, getAppState]);
 
   // Close export menu on outside click
   useEffect(() => {
