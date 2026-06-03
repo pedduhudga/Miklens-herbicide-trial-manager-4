@@ -135,12 +135,13 @@ export function validateEfficacyData (efficacy) {
                 // Cross-observation integrity: normalize duplicates, enforce early temporal consistency,
                 // and keep observation total cover aligned with species covers.
                 const ordered = normalized.slice().sort((a, b) => (parseFloat(a.daa) || 0) - (parseFloat(b.daa) || 0));
+                const baselineDaa = ordered.length > 0 ? (parseFloat(ordered[0].daa) || 0) : 0;
                 const lastSeenBySpecies = new Map();
 
-                // Global DAA 0 authority across duplicate baseline observations.
+                // Global baseline DAA authority across duplicate baseline observations.
                 let daa0BestRealSpeciesSum = 0;
                 ordered.forEach(obs => {
-                    if ((parseFloat(obs?.daa) || 0) !== 0) return;
+                    if ((parseFloat(obs?.daa) || 0) !== baselineDaa) return;
                     const realSum = (Array.isArray(obs?.weedDetails) ? obs.weedDetails : []).reduce((sum, w) => {
                         const sp = String(w?.species || '').trim().toLowerCase();
                         if (!sp || sp === 'total') return sum;
@@ -187,7 +188,7 @@ export function validateEfficacyData (efficacy) {
                         cover: w.cover === null ? null : clamp(w.cover, 0, 100)
                     }));
 
-                    const isBaselineObs = (parseFloat(obs.daa) || 0) === 0;
+                    const isBaselineObs = (parseFloat(obs.daa) || 0) === baselineDaa;
                     if (!isBaselineObs) {
                         obs.weedDetails = obs.weedDetails.filter(w => !isMixedWeedPlaceholder(String(w.species || '')));
                     } else {
@@ -216,10 +217,10 @@ export function validateEfficacyData (efficacy) {
                     obs.weedDetails.forEach(w => {
                         if (w.cover === null || w.species === 'Total') return;
                         const prev = lastSeenBySpecies.get(w.species);
-                        // DAA 0 = baseline (before spray) - never zero its cover.
-                        // Early-window spike suppression only applies to DAA 1-3.
+                        // Baseline DAA = baseline (before spray) - never zero its cover.
+                        // Early-window spike suppression only applies to DAAs after the baseline up to baselineDaa + 3.
                         const daaVal = parseFloat(obs.daa) || 0;
-                        const earlyWindow = daaVal > 0 && daaVal <= 3;
+                        const earlyWindow = daaVal > baselineDaa && daaVal <= baselineDaa + 3;
                             const combinedSignals = `${w.status || ''} ${w.notes || ''} ${obs.notes || ''}`;
                             const allowIncrease = isRegrowthSignal(combinedSignals) || /\[cover corrected:|redistributed from total/i.test(combinedSignals);
 
@@ -231,8 +232,8 @@ export function validateEfficacyData (efficacy) {
                             addWarning(obs, `${w.species}: capped unrealistic DAA ${obs.daa} increase to previous cover.`);
                         }
 
-                        // DAA 0 baseline integrity: if total>0 but species are all 0, restore or synthesize baseline.
-                        const isBaselineDaa = (parseFloat(obs.daa) || 0) === 0;
+                        // Baseline DAA integrity: if total>0 but species are all 0, restore or synthesize baseline.
+                        const isBaselineDaa = (parseFloat(obs.daa) || 0) === baselineDaa;
                         if (isBaselineDaa) {
                             const speciesRows = (obs.weedDetails || []).filter(x => {
                                 const s = String(x.species || '').trim().toLowerCase();
@@ -273,13 +274,13 @@ export function validateEfficacyData (efficacy) {
                                         if (mixed) {
                                             mixed.cover = targetCover;
                                             mixed.status = 'Baseline reference';
-                                            mixed.notes = 'Auto-baseline: mixed weed baseline synthesized from DAA 0 total cover.';
+                                            mixed.notes = 'Auto-baseline: mixed weed baseline synthesized from DAA ' + baselineDaa + ' total cover.';
                                         } else {
                                             obs.weedDetails.push({
                                                 species: 'Mixed weed population',
                                                 cover: targetCover,
                                                 status: 'Baseline reference',
-                                                notes: 'Auto-baseline: mixed weed baseline synthesized from DAA 0 total cover.'
+                                                notes: 'Auto-baseline: mixed weed baseline synthesized from DAA ' + baselineDaa + ' total cover.'
                                             });
                                         }
                                     }
@@ -290,8 +291,8 @@ export function validateEfficacyData (efficacy) {
                         const prevCover = prev ? prev.cover : null;
                         w.status = normalizeLifecycleSafeStatus(w.species, w.status, `${w.notes || ''} ${obs.notes || ''}`, prevCover, w.cover);
 
-                        // DAA 0 cannot have post-treatment injury statuses.
-                        if ((parseFloat(obs.daa) || 0) === 0) {
+                        // Baseline DAA cannot have post-treatment injury statuses.
+                        if ((parseFloat(obs.daa) || 0) === baselineDaa) {
                             if (isMixedWeedPlaceholder && isMixedWeedPlaceholder(String(w.species || ''))) {
                                 w.status = 'Baseline reference';
                             } else {
@@ -316,13 +317,13 @@ export function validateEfficacyData (efficacy) {
                         }, 0);
                         const existing = toNum(obs.weedCover);
                         let correctedCover = derivedCover;
-                        if (daaVal === 0 && realSpeciesSum > 0.1) {
+                        if (daaVal === baselineDaa && realSpeciesSum > 0.1) {
                             correctedCover = clamp(realSpeciesSum, 0, 100);
                         } else if (existing !== null && existing > 0 && realSpeciesSum <= 0.1) {
                             // Do not collapse valid observed total cover to zero when species rows are incomplete.
                             correctedCover = clamp(existing, 0, 100);
                         }
-                        if (existing === null || Math.abs(existing - correctedCover) > 0.1 || daaVal === 0) {
+                        if (existing === null || Math.abs(existing - correctedCover) > 0.1 || daaVal === baselineDaa) {
                             obs.weedCover = correctedCover;
                             obs.weedCoverMode = 'reconciled';
                         }
@@ -332,9 +333,9 @@ export function validateEfficacyData (efficacy) {
                             const totalRows = obs.weedDetails.filter(w => String(w?.species || '').trim().toLowerCase() === 'total');
                             totalRows.forEach(t => { t.cover = obs.weedCover; });
 
-                            // Strict DAA 0 mixed-placeholder rule:
+                            // Strict baseline DAA mixed-placeholder rule:
                             // if real species are present, mixed placeholder must not carry non-zero cover.
-                            if (daaVal === 0) {
+                            if (daaVal === baselineDaa) {
                                 const hasRealPositive = obs.weedDetails.some(w => {
                                     const sp = String(w?.species || '').trim();
                                     if (!sp || sp.toLowerCase() === 'total') return false;
@@ -365,9 +366,9 @@ export function validateEfficacyData (efficacy) {
                         }
                     }
 
-                    // Final authoritative DAA 0 reconciliation (last writer wins):
+                    // Final authoritative baseline DAA reconciliation (last writer wins):
                     // if real species exist, baseline/total must equal their sum and mixed placeholder is removed.
-                    if ((parseFloat(obs.daa) || 0) === 0 && Array.isArray(obs.weedDetails)) {
+                    if ((parseFloat(obs.daa) || 0) === baselineDaa && Array.isArray(obs.weedDetails)) {
                         const realSpeciesRows = obs.weedDetails.filter(w => {
                             const sp = String(w?.species || '').trim().toLowerCase();
                             return sp && sp !== 'total' && !(isMixedWeedPlaceholder && isMixedWeedPlaceholder(sp));
@@ -375,7 +376,7 @@ export function validateEfficacyData (efficacy) {
                         const realSpeciesSum = clamp(realSpeciesRows.reduce((sum, w) => sum + (toNum(w?.cover) || 0), 0), 0, 100);
                         const authoritativeDaa0Sum = daa0BestRealSpeciesSum > 0.1 ? daa0BestRealSpeciesSum : realSpeciesSum;
 
-                        // DAA 0 is pre-spray by definition.
+                        // Baseline DAA is pre-spray by definition.
                         obs.controlPct = 0;
                         if (obs.control !== undefined) obs.control = 0;
                         obs.isBaseline = true;
@@ -410,7 +411,7 @@ export function validateEfficacyData (efficacy) {
                                     species: 'Mixed weed population',
                                     cover: baselineTotal,
                                     status: 'Baseline reference',
-                                    notes: 'Auto-baseline: mixed weed baseline synthesized from DAA 0 total cover.'
+                                    notes: 'Auto-baseline: mixed weed baseline synthesized from DAA ' + baselineDaa + ' total cover.'
                                 });
                             }
                         }

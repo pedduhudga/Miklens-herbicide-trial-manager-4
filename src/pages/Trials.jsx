@@ -1898,7 +1898,6 @@ export default function Trials({ onMenuClick }) {
         ? parseInt(detailTrial.FinalControlDuration, 10)
         : (detailTrial.Date ? Math.max(0, Math.round((new Date() - new Date(detailTrial.Date)) / 86400000)) : null);
 
-      // Build per-species trajectory for the AI
       const speciesMap = {};
       sorted.forEach(o => {
         (o.weedDetails || []).forEach(wd => {
@@ -1918,7 +1917,6 @@ export default function Trials({ onMenuClick }) {
         return `  ${sp}: ${trajectory} | WCE ${spWce}% | Best suppression ${spMin}% at DAA${spMinDaa} | Final ${spFinal}%`;
       }).join('\n') || '  No per-species data recorded.';
 
-      // Format date as DD-Mon-YYYY for industry reports (e.g. 19-Apr-2026)
       const fmtTrialDate = (() => {
         try {
           const d = new Date(detailTrial.Date);
@@ -1928,6 +1926,8 @@ export default function Trials({ onMenuClick }) {
       })();
 
       const prompt = `You are a senior agronomist writing a professional herbicide field trial narrative for an official regulatory-style report (SOP/TDS validation standard).
+      
+      Do NOT include any observations about photo mismatches, data anomalies, or reporting inconsistencies in the main 5 sections. Any data anomalies or discrepancies must be appended strictly at the end, separated by a custom delimiter.
 
 TRIAL DATA:
 - Product: ${detailTrial.FormulationName}
@@ -1966,43 +1966,44 @@ LANGUAGE AND TONE RULES — follow strictly:
 7. Application date must be formatted as DD-Mon-YYYY (e.g. 19-Apr-2026). Dosage units: write "mL" not "ml". Write coordinates as provided. Use "at coordinates X, Y" — never "at location X, Y".
 8. Do NOT use the word "phytotoxic" or "phytotoxicity". Use "herbicidal injury symptoms" instead.
 9. Write in third person. Past tense for finalized trials, present tense for ongoing.
-10. Include a detailed, scientific conclusion in Section 5. If individual species baseline covers are recorded as 0% at DAA 0/1 but overall weed cover drops significantly (e.g. from 100% to 5%), do NOT conclude that the treatment failed to control those species. Instead, interpret this as highly effective suppression of the overall population, note the species cover reporting mismatch, and conclude that the weeds in the plot were successfully controlled.
+10. Include a detailed, scientific conclusion in Section 5. If individual species baseline covers are recorded as 0% but overall weed cover drops significantly (e.g. from 100% to 5%), do NOT conclude that the treatment failed to control those species or that the data is an anomaly inside the main narrative sections. Simply state that target weeds were successfully controlled based on the overall cover reduction. Keep all comments about observation anomalies, data mismatch, or potential incorrect uploads completely out of the 5 main sections.
 
-OUTPUT STRUCTURE — write exactly these 5 sections, nothing else:
+OUTPUT STRUCTURE — write exactly these 5 sections, nothing else (no other intro/outro text, and no delimiters inside the 5 sections):
 
 1. Application & Setup
 One sentence. Start directly with the product name (no "Product X was applied" prefix — just "[Product name] was applied…"). Include dosage (with proper units), application date (DD-Mon-YYYY), coordinates, and all target weed species with scientific names in parentheses.
 
 2. Overall Efficacy Trajectory
 Exactly 3 sentences. Follow this structure precisely:
-- Sentence 1: "At DAA [first], total weed cover was recorded at X%." (use "At DAA [first]" — e.g. DAA 0 or DAA 1, whichever is the baseline)
-- Sentence 2: Dynamically describe the final weed cover (decrease, increase, or stagnation) and its control interpretation based on the actual data. If cover decreased significantly, describe it as showing successful or effective control (e.g. "By DAA [last], total weed cover had decreased to Y%, indicating highly effective control under the evaluated conditions"). If cover increased or remained high, describe it as inadequate control (e.g. "By DAA [last], total weed cover had increased to Y%, indicating inadequate weed control under the evaluated conditions").
-- Sentence 3: Dynamically describe the presence, progression, or absence of herbicidal injury symptoms (such as necrosis, bleaching, chlorosis, or desiccation) and physical weed responses observed in the timeline notes (e.g. "Significant necrosis and bleaching, indicative of herbicidal injury symptoms, were observed across the majority of the weed stand by DAA Z" or "No observable herbicidal injury symptoms or reduction in weed cover attributable to the treatment were detected during the observation period").
-Prefer the word "treatment" over "product" in the body text.
+- Sentence 1: "At DAA [first], total weed cover was recorded at X%."
+- Sentence 2: Dynamically describe the final weed cover and its control interpretation based on the actual data.
+- Sentence 3: Dynamically describe the presence, progression, or absence of herbicidal injury symptoms and physical weed responses observed in the timeline notes.
 
 3. Species-wise Performance
 For EACH species in the per-species breakdown — write the species heading (Common Name + Scientific Name), then 1-2 sentences:
 - Begin each species paragraph with "At DAA X," — never "At X Days After Application".
 - State cover value at each observed DAA factually.
 - For no-control cases use: "No measurable suppression or reduction in cover was observed for this species." or "No observable reduction in cover attributable to the treatment was detected."
-- For partial control only: "Minimal to no observable control was evident for this species." (never "Limited to no observable control")
-- After ALL species, write ONE closing summary sentence on its own line: "Overall, all evaluated species demonstrated negligible Weed Control Efficacy (WCE) under the tested field conditions." (adjust only if some species showed meaningful partial control).
+- For partial control only: "Minimal to no observable control was evident for this species."
+- After ALL species, write ONE closing summary sentence on its own line: State a clean summary of the overall species-wise control trajectory based on the actual observed data. If overall weed cover decreased significantly (e.g. by 70% or more), do NOT say evaluated species demonstrated negligible control. Instead, state that the target weed population was successfully suppressed overall.
 
 4. Control Duration Interpretation
 Exactly 2 sentences. Follow this structure:
-- Sentence 1: Dynamically describe the change or reduction in weed cover over the observation period based on the data (e.g., "The [last DAA]-day observation period revealed a significant and rapid reduction in overall weed cover across the evaluated species" or "The [last DAA]-day observation period revealed no measurable reduction in weed cover across all evaluated species").
-- Sentence 2: "Treatment performance was classified as [Poor/Fair/Good/Excellent], indicating [sufficient/highly effective/moderate/insufficient] weed control performance under the evaluated field conditions." (select the classification that aligns with the rated result or WCE achieved).
+- Sentence 1: Dynamically describe the change or reduction in weed cover over the observation period based on the data.
+- Sentence 2: "Treatment performance was classified as [Poor/Fair/Good/Excellent], indicating [sufficient/highly effective/moderate/insufficient] weed control performance under the evaluated field conditions."
 
 5. Agronomic Conclusion & Weed Control Assessment
-Write 3 to 5 detailed sentences providing a proper scientific conclusion:
-- Sentence 1: Detail the duration of effective control and peak control percentage (e.g. "Effective weed suppression of X% was maintained for Y days during the trial...").
-- Sentence 2: Detail which weed species were successfully addressed (controlled/suppressed) and to what maximum efficacy percentage. Special Rule for Baseline Discrepancies: If individual species baseline covers were recorded as 0% at DAA 0/1 but overall weed cover dropped significantly (e.g. from 100% to 5%), do NOT say the treatment failed to control those species. Instead, clarify that since the overall weed cover was reduced by X%, the target weeds were successfully suppressed, and note the species-specific 0% baseline value as a data recording discrepancy rather than a lack of herbicidal control.
-- Sentence 3: Detail which weed species re-emerged or regrew during the trial and at which DAA the re-emergence or regrowth was detected (e.g. "[Species D] exhibited re-emergence/regrowth, with an increase in cover detected starting at DAA Z.").
-- Sentence 4: Chronological & Biological Anomaly Detection. Analyze the data for chronological or biological implausibility. If any weed species suddenly appears with high cover (e.g. >20%) when it was absent in prior observations, or if there is a sudden, extreme spike in cover over a short interval (e.g. cover jumping from 5% at DAA 3 to 70% at DAA 5 due to the sudden emergence of a new species), you MUST explicitly flag this as a "potential observation/data anomaly due to possible incorrect photo upload" and specify the affected species and DAAs.
-- Sentence 5 (or final sentence): Conclude with a final agronomic recommendation or assessment statement for the treatment under the evaluated conditions.`;
+Write 3 to 4 detailed sentences providing a proper scientific conclusion:
+- Sentence 1: Detail the duration of effective control and peak control percentage.
+- Sentence 2: Detail which weed species were successfully addressed (controlled/suppressed) and to what maximum efficacy percentage. If individual species baseline covers were recorded as 0% but overall weed cover dropped significantly, clarify that since the overall weed cover was reduced by X%, the target weeds were successfully suppressed.
+- Sentence 3: Detail which weed species re-emerged or regrew during the trial and at which DAA the re-emergence or regrowth was detected.
+- Sentence 4: Conclude with a final agronomic recommendation or assessment statement for the treatment under the evaluated conditions.
 
+DETAILED ANOMALY DETECTION (APPEND SEPARATELY):
+At the very end of your response, after the 5 sections, write a delimiter line: "---ANOMALIES---"
+Following this delimiter, perform a chronological and biological anomaly detection check. If any target weed species has a baseline cover of 0% but overall cover is high, or if any weed species suddenly appears or jumps in cover dramatically (e.g., from absent/low to >20% cover in a short interval, suggesting a potential photo mix-up or incorrect upload), list it here. Specify the species, DAAs, and the reason.
+If no anomalies are detected, write "None".`;
 
-      // Use first available Gemini model (try 2.5-flash as reliable stable model)
       const model = 'gemini-2.5-flash';
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -2026,11 +2027,25 @@ Write 3 to 5 detailed sentences providing a proper scientific conclusion:
         if (!text) throw new Error('Empty AI response');
       }
       
-      setAiSummary(text);
+      let cleanNarrative = text;
+      let anomalies = '';
+      if (text.includes('---ANOMALIES---')) {
+        const parts = text.split('---ANOMALIES---');
+        cleanNarrative = parts[0].trim();
+        anomalies = parts[1].trim();
+      }
+
+      setAiSummary(cleanNarrative);
       // ── Persist to Firebase so it survives refresh ──
       const obsCount = efficacy.length;
       const existing = safeJsonParse(detailTrial.AISummariesJSON, {});
-      const updatedSummaries = { ...existing, narrative: text, narrativeObsCount: obsCount, narrativeGeneratedAt: new Date().toISOString() };
+      const updatedSummaries = { 
+        ...existing, 
+        narrative: cleanNarrative, 
+        anomalies, 
+        narrativeObsCount: obsCount, 
+        narrativeGeneratedAt: new Date().toISOString() 
+      };
       const updatedTrial = { ...detailTrial, AISummariesJSON: JSON.stringify(updatedSummaries) };
       updateState({ trials: trials.map(t => t.ID === updatedTrial.ID ? updatedTrial : t) });
       setActiveTrial(updatedTrial);
@@ -3510,6 +3525,15 @@ Write 3 to 5 detailed sentences providing a proper scientific conclusion:
                       <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2 text-xs text-amber-800">
                         <span className="mt-0.5">⚠</span>
                         <span><strong>{currentObsCount - (savedAi.narrativeObsCount ?? 0)} new observation{currentObsCount - (savedAi.narrativeObsCount ?? 0) !== 1 ? 's' : ''} added</strong> since this narrative was generated. Click <strong>Regenerate</strong> to update before exporting.</span>
+                      </div>
+                    )}
+                    {savedAi.anomalies && savedAi.anomalies.trim() !== '' && savedAi.anomalies.toLowerCase().trim() !== 'none' && (
+                      <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-xl p-3 text-xs text-amber-800">
+                        <span className="mt-0.5">⚠</span>
+                        <div>
+                          <strong className="block mb-1">Detected Observation Anomalies (Excluded from Official Report):</strong>
+                          <span className="whitespace-pre-wrap">{savedAi.anomalies}</span>
+                        </div>
                       </div>
                     )}
                     {aiSummary ? (
