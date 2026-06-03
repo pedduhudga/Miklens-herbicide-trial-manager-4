@@ -27,8 +27,6 @@ import {
   updateTrial,
 } from "../services/dataLayer.js";
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
 function parseQrData(raw) {
   if (!raw) return null;
   const str = raw.trim();
@@ -39,6 +37,28 @@ function parseQrData(raw) {
   } catch {
     /* not json */
   }
+
+  // Check if it's a URL (App URL or Google Apps Script URL)
+  if (str.startsWith('http://') || str.startsWith('https://')) {
+    try {
+      // Handle Google Apps Script URL format: scriptUrl?trialId=ID&spreadsheetId=ID
+      if (str.includes('trialId=')) {
+        const urlObj = new URL(str);
+        const trialId = urlObj.searchParams.get('trialId');
+        if (trialId) {
+          return { type: "id", data: trialId };
+        }
+      }
+      // Handle route-based URL format: https://domain.app/#/live/ID or https://domain.app/#live/ID or /live/ID
+      const liveMatch = str.match(/live\/([a-zA-Z0-9_-]+)/);
+      if (liveMatch) {
+        return { type: "id", data: liveMatch[1] };
+      }
+    } catch (e) {
+      console.warn("Failed to parse QR URL:", e);
+    }
+  }
+
   // Plain trial ID
   return { type: "id", data: str };
 }
@@ -51,8 +71,8 @@ function resolveTrialFromQr(parsed, trials) {
     return (
       trials.find(
         (t) =>
-          (d.ID && t.ID === d.ID) ||
-          (d.id && t.ID === d.id) ||
+          (d.ID && String(t.ID) === String(d.ID)) ||
+          (d.id && String(t.ID) === String(d.id)) ||
           (d.FormulationName &&
             t.FormulationName === d.FormulationName &&
             d.Date &&
@@ -60,8 +80,8 @@ function resolveTrialFromQr(parsed, trials) {
       ) || null
     );
   }
-  // plain id
-  return trials.find((t) => t.ID === parsed.data) || null;
+  // plain id (coerce to string to prevent numeric/string type mismatches)
+  return trials.find((t) => String(t.ID) === String(parsed.data)) || null;
 }
 
 function formatDate(str) {
