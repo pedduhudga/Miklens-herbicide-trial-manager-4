@@ -637,10 +637,15 @@ export default function Trials({ onMenuClick }) {
     if (!activeTrial || !window.confirm('Delete this observation?')) return;
     const efficacyData = validateEfficacyData(safeJsonParse(activeTrial.EfficacyDataJSON, []));
     efficacyData.splice(idx, 1);
-    const updated = { ...activeTrial, EfficacyDataJSON: JSON.stringify(efficacyData) };
+    const updated = { 
+      ...activeTrial, 
+      EfficacyDataJSON: JSON.stringify(efficacyData),
+      AISummariesJSON: '{}'
+    };
     updateState({ trials: trials.map(t => t.ID === updated.ID ? updated : t) });
     setActiveTrial(updated);
-    try { await updateTrial({ ID: updated.ID, EfficacyDataJSON: updated.EfficacyDataJSON }, getAppState); } catch (e) {}
+    setAiSummary('');
+    try { await updateTrial({ ID: updated.ID, EfficacyDataJSON: updated.EfficacyDataJSON, AISummariesJSON: '{}' }, getAppState); } catch (e) {}
   };
 
   // ── DETAIL TRIAL DERIVATIONS ──────────────────────────────────────
@@ -952,11 +957,35 @@ export default function Trials({ onMenuClick }) {
   const handleDeletePhoto = async (idx) => {
     if (!activeTrial || !window.confirm('Delete this photo?')) return;
     const photos = safeJsonParse(activeTrial.PhotoURLs, []);
+    const deletedPhoto = photos[idx];
     photos.splice(idx, 1);
-    const updated = { ...activeTrial, PhotoURLs: JSON.stringify(photos) };
+
+    // Find and delete the corresponding AI-generated observation(s) linked to this photo
+    let efficacyData = validateEfficacyData(safeJsonParse(activeTrial.EfficacyDataJSON, []));
+    if (deletedPhoto) {
+      const deletedUrl = deletedPhoto.fileData || deletedPhoto.url || deletedPhoto;
+      if (deletedUrl) {
+        efficacyData = efficacyData.filter(obs => obs.photoUrl !== deletedUrl);
+      }
+    }
+
+    const updated = { 
+      ...activeTrial, 
+      PhotoURLs: JSON.stringify(photos),
+      EfficacyDataJSON: JSON.stringify(efficacyData),
+      AISummariesJSON: '{}'
+    };
     updateState({ trials: trials.map(t => t.ID === updated.ID ? updated : t) });
     setActiveTrial(updated);
-    try { await updateTrial({ ID: updated.ID, PhotoURLs: updated.PhotoURLs }, getAppState); } catch (e) {}
+    setAiSummary('');
+    try { 
+      await updateTrial({ 
+        ID: updated.ID, 
+        PhotoURLs: updated.PhotoURLs, 
+        EfficacyDataJSON: updated.EfficacyDataJSON,
+        AISummariesJSON: '{}'
+      }, getAppState); 
+    } catch (e) {}
   };
 
   const handleGridResult = async (coverPct) => {
@@ -1921,11 +1950,12 @@ Exactly 2 sentences. Follow this structure:
 - Sentence 2: "Treatment performance was classified as [Poor/Fair/Good/Excellent], indicating insufficient weed control performance under the evaluated field conditions."
 
 5. Agronomic Conclusion & Weed Control Assessment
-Write 3 to 4 detailed sentences providing a proper scientific conclusion:
+Write 3 to 5 detailed sentences providing a proper scientific conclusion:
 - Sentence 1: Detail the duration of effective control and peak control percentage (e.g. "Effective weed suppression of X% was maintained for Y days during the trial...").
 - Sentence 2: Detail which weed species were successfully addressed (controlled/suppressed) and to what maximum efficacy percentage, and which weed species were not successfully addressed (e.g. "The treatment successfully addressed [Species A] and [Species B] with peak control efficacy of X% and Y% respectively, while [Species C] remained unaddressed with negligible control...").
 - Sentence 3: Detail which weed species re-emerged or regrew during the trial and at which DAA the re-emergence or regrowth was detected (e.g. "[Species D] exhibited re-emergence/regrowth, with an increase in cover detected starting at DAA Z.").
-- Sentence 4: Conclude with a final agronomic recommendation or assessment statement for the treatment under the evaluated conditions.`;
+- Sentence 4: Chronological & Biological Anomaly Detection. Analyze the data for chronological or biological implausibility. If any weed species suddenly appears with high cover (e.g. >20%) when it was absent in prior observations, or if there is a sudden, extreme spike in cover over a short interval (e.g. cover jumping from 5% at DAA 3 to 70% at DAA 5 due to the sudden emergence of a new species), you MUST explicitly flag this as a "potential observation/data anomaly due to possible incorrect photo upload" and specify the affected species and DAAs.
+- Sentence 5 (or final sentence): Conclude with a final agronomic recommendation or assessment statement for the treatment under the evaluated conditions.`;
 
 
       // Use first available Gemini model (try 2.5-flash as reliable stable model)
