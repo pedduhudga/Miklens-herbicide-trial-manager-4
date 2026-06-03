@@ -1505,15 +1505,9 @@ export default function Trials({ onMenuClick }) {
   }, [qrCardSize]);
 
   const buildPrintableTrialUrl = useCallback((trial) => {
-    const scriptUrl = String(state.settings?.scriptUrl || '').trim();
-    const sheetId = String(state.settings?.sheetId || '').trim();
-    if (scriptUrl && sheetId) {
-      const params = new URLSearchParams({ trialId: trial.ID, spreadsheetId: sheetId });
-      return `${scriptUrl}?${params.toString()}`;
-    }
     const appBase = window.location.origin + window.location.pathname;
     return `${appBase}#/live/${trial.ID}`;
-  }, [state.settings?.scriptUrl, state.settings?.sheetId]);
+  }, []);
 
   const syncTrialToQrScript = useCallback(async (trialPatch) => {
     const scriptUrl = String(state.settings?.scriptUrl || '').trim();
