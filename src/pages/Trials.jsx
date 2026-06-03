@@ -633,15 +633,33 @@ export default function Trials({ onMenuClick }) {
     }
   };
 
-  const calculateResultRating = (efficacyData) => {
+  const calculateResultRating = (efficacyData, isControl = false) => {
+    if (isControl) return 'Control';
     if (!efficacyData || efficacyData.length === 0) return 'Unrated';
-    const sorted = [...efficacyData].sort((a, b) => (parseFloat(b.daa) || 0) - (parseFloat(a.daa) || 0));
-    const latestObs = sorted[0];
-    const remainingCover = latestObs.weedCover || 0;
-    if (remainingCover <= 10) return 'Excellent';
-    if (remainingCover <= 25) return 'Good';
-    if (remainingCover <= 50) return 'Fair';
-    return 'Poor';
+    const sorted = [...efficacyData].sort((a, b) => (parseFloat(a.daa) || 0) - (parseFloat(b.daa) || 0));
+    if (sorted.length < 2) return 'Unrated';
+
+    const baseline = sorted[0];
+    const baseCover = parseFloat(baseline?.weedCover ?? 100) || 100;
+    
+    // Find the duration of effective suppression (cover <= 30% of baseline cover)
+    let maxSuppressionDaa = parseFloat(baseline?.daa || 0);
+    for (let i = 0; i < sorted.length; i++) {
+      const obs = sorted[i];
+      const cover = parseFloat(obs.weedCover ?? 0) || 0;
+      if (cover <= 0.3 * baseCover) {
+        maxSuppressionDaa = parseFloat(obs.daa || 0);
+      } else if (i > 0) {
+        break;
+      }
+    }
+    
+    const duration = maxSuppressionDaa - parseFloat(baseline?.daa || 0);
+    
+    if (duration <= 7) return 'Poor';
+    if (duration <= 17) return 'Fair';
+    if (duration <= 27) return 'Good';
+    return 'Excellent';
   };
 
   const getObservedWeedsList = (efficacyData) => {
@@ -661,7 +679,7 @@ export default function Trials({ onMenuClick }) {
     const efficacyData = validateEfficacyData(safeJsonParse(activeTrial.EfficacyDataJSON, []));
     efficacyData.splice(idx, 1);
 
-    const resultRating = calculateResultRating(efficacyData);
+    const resultRating = calculateResultRating(efficacyData, activeTrial?.IsControl === true || activeTrial?.IsControl === 'true');
     const observedWeeds = getObservedWeedsList(efficacyData);
 
     const updated = { 
@@ -1006,7 +1024,7 @@ export default function Trials({ onMenuClick }) {
       }
     }
 
-    const resultRating = calculateResultRating(efficacyData);
+    const resultRating = calculateResultRating(efficacyData, activeTrial?.IsControl === true || activeTrial?.IsControl === 'true');
     const observedWeeds = getObservedWeedsList(efficacyData);
 
     const updated = { 
@@ -2074,7 +2092,7 @@ If no anomalies are detected, write "None".`;
   useEffect(() => {
     if (!detailTrial) return;
     const efficacy = validateEfficacyData(safeJsonParse(detailTrial.EfficacyDataJSON, []));
-    const calculated = calculateResultRating(efficacy);
+    const calculated = calculateResultRating(efficacy, detailTrial?.IsControl === true || detailTrial?.IsControl === 'true');
     if (calculated !== detailTrial.Result) {
       const updated = { ...detailTrial, Result: calculated };
       updateState({ trials: trials.map(t => t.ID === updated.ID ? updated : t) });

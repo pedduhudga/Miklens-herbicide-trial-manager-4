@@ -286,6 +286,56 @@ export function validateEfficacyData (efficacy) {
                                     }
                                 }
                             }
+                            
+                            // c) Smart redistribution for target species with 0% cover at baseline that are mentioned in notes or present later
+                            if (baselineTotal > 10) {
+                                const zeroCoverSpecies = speciesRows.filter(x => (toNum(x.cover) || 0) <= 0.1);
+                                const combinedNotes = String(obs.notes || '').toLowerCase();
+                                const keywordsMap = {
+                                    'cyperus rotundus': ['sedge', 'nutsedge', 'cyperus', 'purple nutsedge'],
+                                    'cyperus esculentus': ['sedge', 'nutsedge', 'cyperus', 'yellow nutsedge'],
+                                    'cynodon dactylon': ['grass', 'bermuda', 'cynodon', 'couch'],
+                                    'rosa multiflora': ['rose', 'rosa', 'wild rose'],
+                                    'digitaria sanguinalis': ['crabgrass', 'crab', 'digitaria']
+                                };
+                                const toRedistribute = [];
+                                
+                                zeroCoverSpecies.forEach(x => {
+                                    const spLower = String(x.species || '').trim().toLowerCase();
+                                    let isMentioned = false;
+                                    if (keywordsMap[spLower]) {
+                                        isMentioned = keywordsMap[spLower].some(kw => combinedNotes.includes(kw));
+                                    } else {
+                                        const words = spLower.split(/\s+/).filter(w => w.length > 3);
+                                        isMentioned = words.some(w => combinedNotes.includes(w));
+                                    }
+                                    const isPresentLater = ordered.some(o => {
+                                        if ((parseFloat(o.daa) || 0) <= baselineDaa) return false;
+                                        const match = (o.weedDetails || []).find(wd => String(wd.species || '').trim().toLowerCase() === spLower);
+                                        return (toNum(match?.cover) || 0) > 0.1;
+                                    });
+                                    if (isMentioned || isPresentLater) {
+                                        toRedistribute.push(x);
+                                    }
+                                });
+                                
+                                if (toRedistribute.length > 0) {
+                                    const dominant = speciesRows.reduce((prev, curr) => (toNum(curr.cover) || 0) > (toNum(prev.cover) || 0) ? curr : prev, speciesRows[0]);
+                                    if (dominant && (toNum(dominant.cover) || 0) > 20) {
+                                        const share = 10;
+                                        toRedistribute.forEach(x => {
+                                            const domCover = toNum(dominant.cover) || 0;
+                                            if (domCover >= share + 10) {
+                                                x.cover = share;
+                                                x.status = 'Unaffected';
+                                                x.notes = `Auto-reconciled: assigned ${share}% baseline cover from notes/history.`;
+                                                dominant.cover = domCover - share;
+                                                dominant.notes = window.upsertCoverCorrectionNote(dominant.notes, `${share}% redistributed to ${x.species}`);
+                                            }
+                                        });
+                                    }
+                                }
+                            }
                         }
 
                         const prevCover = prev ? prev.cover : null;
