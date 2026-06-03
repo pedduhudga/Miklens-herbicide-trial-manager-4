@@ -633,19 +633,56 @@ export default function Trials({ onMenuClick }) {
     }
   };
 
+  const calculateResultRating = (efficacyData) => {
+    if (!efficacyData || efficacyData.length === 0) return 'Unrated';
+    const sorted = [...efficacyData].sort((a, b) => (parseFloat(b.daa) || 0) - (parseFloat(a.daa) || 0));
+    const latestObs = sorted[0];
+    const remainingCover = latestObs.weedCover || 0;
+    if (remainingCover <= 10) return 'Excellent';
+    if (remainingCover <= 25) return 'Good';
+    if (remainingCover <= 50) return 'Fair';
+    return 'Poor';
+  };
+
+  const getObservedWeedsList = (efficacyData) => {
+    const species = new Set();
+    efficacyData.forEach(obs => {
+      (obs.weedDetails || []).forEach(wd => {
+        if (wd.species && wd.species !== 'No weeds detected') {
+          species.add(wd.species);
+        }
+      });
+    });
+    return species.size > 0 ? Array.from(species).join(', ') : 'No weeds detected';
+  };
+
   const handleDeleteObs = async (idx) => {
     if (!activeTrial || !window.confirm('Delete this observation?')) return;
     const efficacyData = validateEfficacyData(safeJsonParse(activeTrial.EfficacyDataJSON, []));
     efficacyData.splice(idx, 1);
+
+    const resultRating = calculateResultRating(efficacyData);
+    const observedWeeds = getObservedWeedsList(efficacyData);
+
     const updated = { 
       ...activeTrial, 
       EfficacyDataJSON: JSON.stringify(efficacyData),
+      Result: resultRating,
+      WeedSpecies: observedWeeds,
       AISummariesJSON: '{}'
     };
     updateState({ trials: trials.map(t => t.ID === updated.ID ? updated : t) });
     setActiveTrial(updated);
     setAiSummary('');
-    try { await updateTrial({ ID: updated.ID, EfficacyDataJSON: updated.EfficacyDataJSON, AISummariesJSON: '{}' }, getAppState); } catch (e) {}
+    try { 
+      await updateTrial({ 
+        ID: updated.ID, 
+        EfficacyDataJSON: updated.EfficacyDataJSON, 
+        Result: updated.Result,
+        WeedSpecies: updated.WeedSpecies,
+        AISummariesJSON: '{}' 
+      }, getAppState); 
+    } catch (e) {}
   };
 
   // ── DETAIL TRIAL DERIVATIONS ──────────────────────────────────────
@@ -969,10 +1006,15 @@ export default function Trials({ onMenuClick }) {
       }
     }
 
+    const resultRating = calculateResultRating(efficacyData);
+    const observedWeeds = getObservedWeedsList(efficacyData);
+
     const updated = { 
       ...activeTrial, 
       PhotoURLs: JSON.stringify(photos),
       EfficacyDataJSON: JSON.stringify(efficacyData),
+      Result: resultRating,
+      WeedSpecies: observedWeeds,
       AISummariesJSON: '{}'
     };
     updateState({ trials: trials.map(t => t.ID === updated.ID ? updated : t) });
@@ -983,6 +1025,8 @@ export default function Trials({ onMenuClick }) {
         ID: updated.ID, 
         PhotoURLs: updated.PhotoURLs, 
         EfficacyDataJSON: updated.EfficacyDataJSON,
+        Result: updated.Result,
+        WeedSpecies: updated.WeedSpecies,
         AISummariesJSON: '{}'
       }, getAppState); 
     } catch (e) {}
