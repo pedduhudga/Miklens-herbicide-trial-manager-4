@@ -622,7 +622,7 @@ export default function Trials({ onMenuClick }) {
     else efficacyData.push(newObs);
     efficacyData.sort((a, b) => a.daa - b.daa);
     const updated = { ...activeTrial, EfficacyDataJSON: JSON.stringify(efficacyData) };
-    updateState({ trials: trials.map(t => t.ID === updated.ID ? updated : t) });
+    updateState({ trials: getAppState().trials.map(t => t.ID === updated.ID ? updated : t) });
     setActiveTrial(updated);
     setIsObsModalOpen(false);
     try {
@@ -670,7 +670,7 @@ export default function Trials({ onMenuClick }) {
     const baseCover = parseFloat(baseline?.weedCover ?? 100) || 100;
     const wceRows = sorted.map(obs => {
       const cover = parseFloat(obs.weedCover ?? 0) || 0;
-      const wce = obs.daa === 0 ? null : (baseCover > 0 ? Math.max(0, Math.min(100, (1 - cover / baseCover) * 100)) : 0);
+      const wce = obs.daa === baseline?.daa ? null : (baseCover > 0 ? Math.max(0, Math.min(100, (1 - cover / baseCover) * 100)) : 0);
       const rating = wce === null ? 'Baseline' : wce >= 85 ? 'Excellent' : wce >= 70 ? 'Good' : wce >= 50 ? 'Fair' : 'Poor';
       const sp = (obs.weedDetails || []).map(w => w.species).filter(Boolean).join(', ') || (detailTrial.WeedSpecies || 'Mixed');
       return { species: sp, initialCover: baseCover.toFixed(1), finalCover: cover.toFixed(1), wce: wce !== null ? parseFloat(wce.toFixed(1)) : null, controlRating: rating, daa: obs.daa };
@@ -720,6 +720,7 @@ export default function Trials({ onMenuClick }) {
   const saveAndAnalyzePhoto = async (dataUrl, photoDateStr, targetTrialOverride = null) => {
     const targetTrial = targetTrialOverride || activeTrial;
     if (!targetTrial) return;
+    setAiGenRunning(dataUrl || true);
 
     const photoDate = photoDateStr || new Date().toISOString().split('T')[0];
     const fileName = `photo_${targetTrial.ID}_${Date.now()}.jpg`;
@@ -906,6 +907,7 @@ export default function Trials({ onMenuClick }) {
     } catch (e) {
       window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: 'Failed to save photo', type: 'error' } }));
     } finally {
+      setAiGenRunning(false);
       updateState({ syncQueue: getAppState().syncQueue.filter(item => item.id !== `sync_${tempId}`) });
     }
   };
@@ -967,7 +969,8 @@ export default function Trials({ onMenuClick }) {
 
   // ── AI PHOTO ANALYSIS ─────────────────────────────────────────────
   const createObservationFromAI = async (trial, daa, aiData, obsDate = null, photoUrl = null) => {
-    const efficacyData = validateEfficacyData(safeJsonParse(trial.EfficacyDataJSON, []));
+    const latestTrial = getAppState().trials.find(t => t.ID === trial.ID) || trial;
+    const efficacyData = validateEfficacyData(safeJsonParse(latestTrial.EfficacyDataJSON, []));
 
     // Normalize weed data with enhanced fields
     const normalizedWeeds = (aiData.weeds || []).map(w => ({
@@ -1028,18 +1031,18 @@ export default function Trials({ onMenuClick }) {
     }
 
     const updated = {
-      ...trial,
+      ...latestTrial,
       EfficacyDataJSON: JSON.stringify(efficacyData),
       Result: resultRating,
       WeedSpecies: normalizedWeeds.length > 0 ? normalizedWeeds.map(w => w.species).join(', ') : 'No weeds detected'
     };
 
-    updateState({ trials: trials.map(t => t.ID === updated.ID ? updated : t) });
-    if (activeTrial?.ID === trial.ID) setActiveTrial(updated);
+    updateState({ trials: getAppState().trials.map(t => t.ID === updated.ID ? updated : t) });
+    if (activeTrial?.ID === latestTrial.ID) setActiveTrial(updated);
 
     try {
       await updateTrial({
-        ID: trial.ID,
+        ID: latestTrial.ID,
         EfficacyDataJSON: updated.EfficacyDataJSON,
         Result: updated.Result,
         WeedSpecies: updated.WeedSpecies
@@ -1114,7 +1117,7 @@ export default function Trials({ onMenuClick }) {
         setAiBatchProgress({ current, total, message });
       },
       async ({ trialId, daa, data, photoDate }) => {
-        const trial = trials.find(t => t.ID === trialId);
+        const trial = getAppState().trials.find(t => t.ID === trialId);
         if (trial) {
           await createObservationFromAI(trial, daa, data, photoDate);
           if (!analyzedDAAs.has(trialId)) analyzedDAAs.set(trialId, new Set());
@@ -1168,7 +1171,7 @@ export default function Trials({ onMenuClick }) {
       }, (msg) => window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg, type: 'info' } })));
 
       if (result.success) {
-        await createObservationFromAI(activeTrial, daa, result.data, photoDate);
+        await createObservationFromAI(activeTrial, daa, result.data, photoDate, photoSrc);
         window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: `AI complete! Detected ${result.data.weeds?.length || 0} weed species at DAA ${daa}. Observation saved.`, type: 'success' } }));
       } else {
         window.dispatchEvent(new CustomEvent('app:toast', { detail: { msg: 'AI analysis failed: ' + (result.error || 'Unknown error'), type: 'error' } }));
@@ -2785,7 +2788,8 @@ Exactly 2 sentences. Follow this structure:
                       <div className="space-y-3">
                         {sorted.map((obs, idx) => {
                           const cover = parseFloat(obs.weedCover ?? 0);
-                          const wce = baseCover > 0 && obs.daa > 0 ? Math.max(0, Math.min(100, (1 - cover / baseCover) * 100)) : null;
+                          const isBaseline = obs.daa === sorted[0]?.daa;
+                          const wce = baseCover > 0 && !isBaseline ? Math.max(0, Math.min(100, (1 - cover / baseCover) * 100)) : null;
                           const wceRating = wce === null ? null : wce >= 85 ? 'Excellent' : wce >= 70 ? 'Good' : wce >= 50 ? 'Fair' : 'Poor';
                           const wceCls = wce === null ? '' : wce >= 85 ? 'text-emerald-700 bg-emerald-50' : wce >= 70 ? 'text-blue-700 bg-blue-50' : wce >= 50 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
                           const risks = getClimateRisks(obs.weatherTemp, obs.weatherWind, obs.weatherRain);
@@ -2812,7 +2816,7 @@ Exactly 2 sentences. Follow this structure:
                                 </div>
                                 <div className={`p-2 rounded-lg text-center ${wce !== null ? wceCls : 'bg-slate-50'}`}>
                                   <p className="text-[10px] font-semibold mb-0.5 opacity-70">WCE %</p>
-                                  <p className="text-base font-bold">{wce !== null ? `${wce.toFixed(1)}%` : obs.daa === 0 ? 'Baseline' : '—'}</p>
+                                  <p className="text-base font-bold">{wce !== null ? `${wce.toFixed(1)}%` : isBaseline ? 'Baseline' : '—'}</p>
                                 </div>
                                 <div className="bg-slate-50 p-2 rounded-lg text-center">
                                   <p className="text-[10px] text-slate-500 font-semibold mb-0.5">Species</p>
@@ -2950,14 +2954,14 @@ Exactly 2 sentences. Follow this structure:
                               <div className="absolute top-1 right-1 flex gap-1">
                                 <button
                                   onClick={() => handleAnalyzeSinglePhoto(src, photo.date)}
-                                  disabled={aiGenRunning}
+                                  disabled={!!aiGenRunning}
                                   title={aiGenRunning ? 'AI analysis running...' : 'AI Full Scan & Log'}
                                   className={`p-1.5 rounded-lg text-white shadow transition ${aiGenRunning ? 'bg-purple-400 cursor-wait' : 'bg-purple-600/90 hover:bg-purple-700'}`}>
-                                  {aiGenRunning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                                  {aiGenRunning === src ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                                 </button>
                                 <button onClick={() => handleDeletePhoto(idx)} title="Delete"
                                   className="p-1.5 bg-red-500/90 backdrop-blur rounded-lg text-white shadow">
-                                  <Trash2 className="w-3 h-3" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </div>

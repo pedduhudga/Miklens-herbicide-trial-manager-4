@@ -212,7 +212,7 @@ export async function attemptChartRecovery(trialId, mode = 'all', state) {
                 if (baseline && baseline.weedCover != null) {
                     efficacyData = efficacyData.map(obs => ({
                         ...obs,
-                        wce: calculateWCE(baseline.weedCover, obs.weedCover)
+                        wce: obs.daa === baseline.daa ? null : calculateWCE(baseline.weedCover, obs.weedCover)
                     }));
                     results.actions.push('Recalculated WCE values');
                 }
