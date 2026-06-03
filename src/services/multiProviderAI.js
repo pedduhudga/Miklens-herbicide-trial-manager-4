@@ -185,9 +185,9 @@ SCIENTIFIC ANALYSIS TASKS:
 
 6. **Confidence**: Rate image assessment confidence as LOW, MEDIUM, or HIGH
 
-7. **Application Timing**: Estimate the herbicide application timing relative to weed/crop growth stage, choosing one of: PRE (Pre-emergence, bare soil / no weeds emerged), E-POST (Early Post-emergence, small seedlings, 1-3 leaves), POST (Post-emergence, active vegetative growth, 4-6 leaves / tillering), L-POST (Late Post-emergence, mature weeds / flowering / closed canopy).
+7. **Application Timing**: Estimate the herbicide application timing relative to weed/crop growth stage, choosing one of: PRE (Pre-emergence, bare soil / no weeds emerged), E-POST (Early Post-emergence, small seedlings, 1-3 leaves), POST (Post-emergence, active vegetative growth, 4-6 leaves / tillering), L-POST (Late Post-emergence, mature weeds / flowering / closed canopy). NOTE: If the weeds are already Mature or Flowering, you MUST select L-POST instead of POST.
 
-8. **Overall Weed Growth Stage**: Provide a standardized summary text describing the dominant/overall growth stage of the weeds in the plot (e.g., '2-4 leaf stage', 'tillering', 'seedling', 'flowering', 'pre-emergence').
+8. **Overall Weed Growth Stage**: Provide a standardized summary text describing the dominant/overall growth stage of the weeds in the plot (e.g., '2-4 leaf stage', 'tillering', 'seedling', 'flowering', 'pre-emergence', 'mature').
 
 LANGUAGE RULES:
 - Do NOT include any recommendations, monitoring suggestions, or next-step advice.
