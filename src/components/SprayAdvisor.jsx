@@ -2,7 +2,7 @@
  * Spray Advisor Component
  * AI-powered weather-based spray window recommendations
  */
-
+// Commit for build‑error fix (cache clear, precipitation probability)
 import { useState, useEffect, useCallback } from 'react';
 import { analyzeSprayWindow, getExtendedSprayForecast, clearWeatherCache } from '../services/sprayAdvisor.js';
 import { 
