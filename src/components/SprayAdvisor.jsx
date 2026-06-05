@@ -233,13 +233,7 @@ export default function SprayAdvisor({ lat, lon, locationName = 'Current Locatio
                   )}
                 </div>
               ))
-        <div key={i} className="min-w-[80px] bg-slate-50 p-2 rounded-lg text-center">
-          <div className="text-xs text-slate-500 mb-1">{fh.time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</div>
-          <div className="text-sm font-medium text-slate-800">{fh.temperature}°C</div>
-          <div className="text-xs text-slate-600">{fh.humidity}%</div>
-          <div className="text-xs text-slate-600">{fh.windSpeed} km/h</div>
-          <div className="text-xs text-slate-600">{fh.precipitation}mm</div>
-        </div>
+
       ))}
     </div>
   </div>
